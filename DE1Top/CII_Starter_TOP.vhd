@@ -10,6 +10,7 @@ entity CII_Starter_TOP is
            HEX2 : out std_logic_vector(0 to 6);
            HEX3 : out std_logic_vector(0 to 6);
            LEDG : out std_logic_vector(0 to 3);
+           LEDR : out std_logic_vector(0 to 1);
            I2C_SCLK : out std_logic;
            I2C_SDAT : inout std_logic;
            AUD_DACLRCK : in std_logic;
@@ -28,7 +29,7 @@ entity CII_Starter_TOP is
            VGA_B   : out std_logic_vector(0 to 3);
            VGA_HS  : out std_logic;
            VGA_VS  : out std_logic;
-           SW      : in std_logic_vector(0 to 0);
+           SW      : in std_logic_vector(0 to 1);
            SRAM_ADDR : out std_logic_vector (0 to 17);
            SRAM_DQ : inout std_logic_vector (0 to 15);
            SRAM_CE_N : out std_logic;
@@ -39,12 +40,14 @@ entity CII_Starter_TOP is
 end entity CII_Starter_TOP;
 
 architecture structural of CII_Starter_TOP is
-  signal rstkbdatasdaIsramInaudioClks : Z5TZLz2cUz2cUz2cUz2cUZRbooleanZ2TZLz2cUZRstd_logicstd_logicstd_logicvectorzmstd_logiczm0_to_16Z3TZLz2cUz2cUZRstd_logicstd_logicstd_logic;
+  signal rstkbdatasdaIsramInaudioClksfftEnable : Z7TZLz2cUz2cUz2cUz2cUz2cUz2cUZRbooleanZ2TZLz2cUZRstd_logicstd_logicstd_logicvectorzmstd_logiczm0_to_16Z3TZLz2cUz2cUZRstd_logicstd_logicstd_logicbooleanboolean;
   signal rst  : boolean;
   signal kbdata : Z2TZLz2cUZRstd_logicstd_logic;
   signal sdai : std_logic;
   signal sramIn : vectorzmstd_logiczm0_to_16;
   signal audioClks : Z3TZLz2cUz2cUZRstd_logicstd_logicstd_logic;
+  signal fftEnable : boolean;
+  signal highorlowpass : boolean;
   signal donefaultdacDati2cOhexdispsvgaOutsramOut : Z7TZLz2cUz2cUz2cUz2cUz2cUz2cUZRbooleanbooleanstd_logicZ4TZLz2cUz2cUz2cUZRstd_logicbooleanstd_logicbooleanZ4TZLz2cUz2cUz2cUZRvectorzmstd_logiczm0_to_7vectorzmstd_logiczm0_to_7vectorzmstd_logiczm0_to_7vectorzmstd_logiczm0_to_7Z5TZLz2cUz2cUz2cUz2cUZRstd_logicstd_logicvectorzmstd_logiczm0_to_4vectorzmstd_logiczm0_to_4vectorzmstd_logiczm0_to_4Z7TZLz2cUz2cUz2cUz2cUz2cUz2cUZRvectorzmstd_logiczm0_to_16vectorzmstd_logiczm0_to_18std_logicstd_logicstd_logicstd_logicstd_logic;
   signal done : boolean;
   signal fault : boolean;
@@ -100,15 +103,25 @@ begin
   audioClks.B <= AUD_DACLRCK;
   audioClks.C <= AUD_ADCDAT;
 
-  rstkbdatasdaIsramInaudioClks.A <= rst;
-  rstkbdatasdaIsramInaudioClks.B <= kbdata;
-  rstkbdatasdaIsramInaudioClks.C <= sdai;
-  rstkbdatasdaIsramInaudioClks.D <= sramIn;
-  rstkbdatasdaIsramInaudioClks.E <= audioClks;
+  fftEnable <= true when SW(0) = '1' else false;
+
+  LEDR(0) <= '1' when fftEnable = true else '0';
+  
+  highorlowpass <= true when SW(1) = '1' else false;
+  
+  LEDR(1) <= '1' when highorlowpass = true else '0';
+
+  rstkbdatasdaIsramInaudioClksfftEnable.A <= rst;
+  rstkbdatasdaIsramInaudioClksfftEnable.B <= kbdata;
+  rstkbdatasdaIsramInaudioClksfftEnable.C <= sdai;
+  rstkbdatasdaIsramInaudioClksfftEnable.D <= sramIn;
+  rstkbdatasdaIsramInaudioClksfftEnable.E <= audioClks;
+  rstkbdatasdaIsramInaudioClksfftEnable.F <= fftEnable;
+  rstkbdatasdaIsramInaudioClksfftEnable.G <= highorlowpass;
   
   component0 : entity de1Component_0
-                    port map (inputHooks2047615916 => rstkbdatasdaIsramInaudioClks,
-                              arrowHooksOut2047615907 => donefaultdacDati2cOhexdispsvgaOutsramOut,
+                    port map (inputHooks2047405851 => rstkbdatasdaIsramInaudioClksfftEnable,
+                              arrowHooksOut2047405842 => donefaultdacDati2cOhexdispsvgaOutsramOut,
                               clock1 => sysclock50,
                               clock2 => fftClk10,
                               clock3 => AUD_BCLK,

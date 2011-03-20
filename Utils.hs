@@ -10,7 +10,11 @@ synchronize (State s) inp = (State s', outp)
   where
     s'   = inp +>> s
     outp = vlast s
-    
+ 
+delayN (State s) inp = (State (inp +>> s), vlast s)
+
+pulseHigh :: State Bit -> Bit -> (State Bit, Bool)
+pulseHigh (State inpP) inp = (State inp, (inpP == Low) && (inp == High))   
 
 hex2display :: Unsigned D4 -> SegDisp
 hex2display v = case v of

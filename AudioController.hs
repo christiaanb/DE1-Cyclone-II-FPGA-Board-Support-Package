@@ -15,11 +15,11 @@ data AudioCtrlS = ACS { lDacCount     :: Index D26
                       , dacData       :: Vector D48 Bit
                       , lAdcData      :: Vector D24 Bit
                       , rAdcData      :: Vector D24 Bit
-                      , lAdcDataS     :: Signed D24
-                      , rAdcDataS     :: Signed D24
+                      , lAdcDataS     :: Vector D18 Bit
+                      , rAdcDataS     :: Vector D18 Bit
                       }
                       
-type AudioCtrlI = ((Signed D16, Signed D16, Bool), (Bit,Bit,Bit))
+type AudioCtrlI = ((Signed D18, Signed D18, Bool), (Bit,Bit,Bit))
 type AudioCtrlO = (Bit,Bit,(Signed D18, Signed D18), Bit)
 
 audioCtrl = proc (ldata,rdata,wEn,clks) -> do
@@ -30,30 +30,24 @@ audioCtrl = proc (ldata,rdata,wEn,clks) -> do
 audioSyncInit = vcopy (0,0,False)
 
 audioCtrlInit :: AudioCtrlS
-audioCtrlInit = ACS 0 0 0 0 Low Low (vcopy Low) (vcopy Low) (vcopy Low) 0 0
+audioCtrlInit = ACS 0 0 0 0 Low Low (vcopy Low) (vcopy Low) (vcopy Low) (vcopy Low) (vcopy Low)
 
 audioCtrlT :: State AudioCtrlS -> AudioCtrlI -> (State AudioCtrlS, AudioCtrlO)
 audioCtrlT (State s@(ACS{..})) inp = (State dacSm, outp)
   where
     ((ldata,rdata,wEn),(adcLRclk,dacLRclk,adcDat)) = inp
-    outp = (pulseAdc48KHz,pulseDac48KHz,(bv2s (vtake d18 ldata'), bv2s (vtake d18 rdata')),vhead dacData)
+    outp = (pulseAdc48KHz,pulseDac48KHz,(bv2s lAdcDataS, bv2s rAdcDataS),vhead dacData)
     
     sd = s { pulseAdc48KHz = Low, pulseDac48KHz = Low }
-        
-    input2l = bv2s ((s2bv ldata) <++> (vcopyn d8 Low))
-    mixedDataL = (shiftR (bv2s lAdcData) 1) + (shiftR input2l 1)
     
-    input2r = bv2s ((s2bv rdata) <++> (vcopyn d8 Low))
-    mixedDataR = (shiftR (bv2s rAdcData) 1) + (shiftR input2r 1)
-    
-    ldata' = s2bv lAdcDataS
-    rdata' = s2bv rAdcDataS
+    ldata' = (s2bv ldata) <++> (vcopyn d6 Low)
+    rdata' = (s2bv rdata) <++> (vcopyn d6 Low)
     
     adcSm = if adcLRclk == Low then
         let sadcl = sd { lAdcCount = lAdcCount + 1, rAdcCount = 0}
         in
           case lAdcCount of
-            0         -> sadcl { pulseAdc48KHz = High, lAdcDataS = mixedDataL, rAdcDataS = mixedDataR}
+            0         -> sadcl { pulseAdc48KHz = High, lAdcDataS = vtake d18 lAdcData, rAdcDataS = vtake d18 rAdcData}
             25        -> sd
             otherwise -> sadcl { lAdcData = lAdcData <<+ adcDat }            
       else -- adcLRclk == High

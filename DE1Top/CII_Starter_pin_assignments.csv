@@ -145,9 +145,9 @@ From,To,Assignment Name,Value,Enabled
 ,GPIO_1[32],I/O Standard,LVTTL,No
 ,GPIO_1[33],I/O Standard,LVTTL,No
 ,GPIO_1[34],I/O Standard,LVTTL,No
-,GPIO_1[35],I/O Standard,LVTTL,Yes
+,GPIO_1[35],I/O Standard,LVTTL,No
 ,SW[0],Location,PIN_L22,Yes
-,SW[1],Location,PIN_L21,No
+,SW[1],Location,PIN_L21,Yes
 ,SW[2],Location,PIN_M22,No
 ,SW[3],Location,PIN_V12,No
 ,SW[4],Location,PIN_W12,No
@@ -157,7 +157,7 @@ From,To,Assignment Name,Value,Enabled
 ,SW[8],Location,PIN_M1,No
 ,SW[9],Location,PIN_L2,No
 ,SW[0],I/O Standard,LVTTL,Yes
-,SW[1],I/O Standard,LVTTL,No
+,SW[1],I/O Standard,LVTTL,Yes
 ,SW[2],I/O Standard,LVTTL,No
 ,SW[3],I/O Standard,LVTTL,No
 ,SW[4],I/O Standard,LVTTL,No
@@ -226,8 +226,8 @@ From,To,Assignment Name,Value,Enabled
 ,KEY[1],Location,PIN_R21,Yes
 ,KEY[2],Location,PIN_T22,No
 ,KEY[3],Location,PIN_T21,No
-,LEDR[0],Location,PIN_R20,No
-,LEDR[1],Location,PIN_R19,No
+,LEDR[0],Location,PIN_R20,Yes
+,LEDR[1],Location,PIN_R19,Yes
 ,LEDR[2],Location,PIN_U19,No
 ,LEDR[3],Location,PIN_Y19,No
 ,LEDR[4],Location,PIN_T18,No
@@ -248,8 +248,8 @@ From,To,Assignment Name,Value,Enabled
 ,KEY[1],I/O Standard,LVTTL,Yes
 ,KEY[2],I/O Standard,LVTTL,No
 ,KEY[3],I/O Standard,LVTTL,No
-,LEDR[0],I/O Standard,LVTTL,No
-,LEDR[1],I/O Standard,LVTTL,No
+,LEDR[0],I/O Standard,LVTTL,Yes
+,LEDR[1],I/O Standard,LVTTL,Yes
 ,LEDR[2],I/O Standard,LVTTL,No
 ,LEDR[3],I/O Standard,LVTTL,No
 ,LEDR[4],I/O Standard,LVTTL,No

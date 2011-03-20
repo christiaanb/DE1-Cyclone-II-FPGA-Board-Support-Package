@@ -144,7 +144,7 @@ spectrumCtrlT (State s@(SpectrumS{..})) inp = (State s', outp)
     (pixelRed, pixelGreen, pixelBlue) = decodePixel pixelIn
     
     -- spectrum is diplayed over entire horizal span
-    showSpectrum = if counterY > 255 && counterY < 512  then High else Low 
+    showSpectrum = if counterX > 2 && counterY > 259 && counterY < 512  then High else Low 
     
     vgaR = vmap (hwand (inDisplayArea `hwand` showSpectrum)) (vreverse pixelRed)
     vgaG = vmap (hwand (inDisplayArea `hwand` showSpectrum)) (vreverse pixelGreen)
@@ -154,7 +154,7 @@ spectrumCtrlT (State s@(SpectrumS{..})) inp = (State s', outp)
 encodePixel :: Signed D18 -> Vector D8 Bit
 encodePixel val = (u2bv pixelval)
   where
-    pixelval | val < 3     && val > (-2)     = 0
+    pixelval | val < 2     && val > (-2)     = 0
              | val < 5     && val > (-5)     = 1 
              | val < 11    && val > (-11)    = 2
              | val < 24    && val > (-24)    = 3
