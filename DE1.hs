@@ -30,5 +30,3 @@ de1 = proc (rst,kbdata,sdaI,sramIn,audioClks,firEnable,highOrLow) -> do
       fftData                                                      <- fftsync         -< (firDataL,pulseAdc48KHzDL)
       (sramOut,vgaOut)                                             <- spectrumDisplay -< (sramIn,fftData)
   returnA -< (done,fault,dacDat,i2cO,hexdisps,vgaOut,sramOut)
-
-enable a = if a then High else Low

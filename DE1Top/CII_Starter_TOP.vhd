@@ -120,8 +120,8 @@ begin
   rstkbdatasdaIsramInaudioClksfftEnable.G <= highorlowpass;
   
   component0 : entity de1Component_0
-                    port map (inputHooks2047405851 => rstkbdatasdaIsramInaudioClksfftEnable,
-                              arrowHooksOut2047405842 => donefaultdacDati2cOhexdispsvgaOutsramOut,
+                    port map (inputHooks2047405853 => rstkbdatasdaIsramInaudioClksfftEnable,
+                              arrowHooksOut2047405844 => donefaultdacDati2cOhexdispsvgaOutsramOut,
                               clock1 => sysclock50,
                               clock2 => fftClk10,
                               clock3 => AUD_BCLK,

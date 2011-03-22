@@ -16,6 +16,8 @@ delayN (State s) inp = (State (inp +>> s), vlast s)
 pulseHigh :: State Bit -> Bit -> (State Bit, Bool)
 pulseHigh (State inpP) inp = (State inp, (inpP == Low) && (inp == High))   
 
+enable a = if a then High else Low
+
 hex2display :: Unsigned D4 -> SegDisp
 hex2display v = case v of
 --              0   ,1   ,2   ,3   ,4   ,5   ,6
