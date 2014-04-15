@@ -1,29 +1,27 @@
 module DE1Types where
 
-import CLasH.HardwareTypes
+import CLaSH.Prelude
+import CLaSH.Prelude.Explicit
 
 -- ==========
 -- = Clocks =
 -- ==========
-kbclock :: Clock
-kbclock = ClockDown 20
+sysclock :: Clock 1000
+sysclock = Clock d1000
 
-sysclock :: Clock
-sysclock = ClockUp 1
+bclkClock :: Clock 300
+bclkClock = Clock d300
 
-bclkClock :: Clock
-bclkClock = ClockUp 3
-
-fftClock :: Clock
-fftClock = ClockUp 2
+fftClock :: Clock 200
+fftClock = Clock d200
 
 -- ================
 -- = Type Aliases =
 -- ================
-type SegDisp     = Vector D7 Bit
-type Scancode    = Vector D8 Bit
-type Key         = Unsigned D8
-type Stepsize    = Signed D16
+type SegDisp     = Vec 7 Bit
+type Scancode    = Vec 8 Bit
+type Key         = Unsigned 8
+type Stepsize    = Signed 16
 type I2CIn       = (Bit,Bit)
 type I2COut      = (Bit,Bool,Bit,Bool)
 
