@@ -1,78 +1,80 @@
 {-# LANGUAGE RecordWildCards #-}
 module VGAController (vgaController) where
-  
-import CLasH.HardwareTypes
-import DE1Types
 
-vgaController = comp vgaControllerT vgaInit sysclock
+import CLaSH.Prelude
+import Control.Lens
+import Control.Monad.State
+
+import Utils
 
 vgaInit :: VGACS
-vgaInit = VGACS 0 Low High 0 Low High 0 0
+vgaInit = VGACS 0 L H 0 L H 0 0
 
-data VGACS = VGACS { hCounter   :: Unsigned D12
-                   , vgaBlankHs :: Bit
-                   , vgaHs      :: Bit
-                   , vCounter   :: Unsigned D12
-                   , vgaBlankVs :: Bit
-                   , vgaVs      :: Bit
-                   , counterX   :: Unsigned D12
-                   , counterY   :: Unsigned D12
+data VGACS = VGACS { _hCounter   :: Unsigned 12
+                   , _vgaBlankHs :: Bit
+                   , _vgaHs      :: Bit
+                   , _vCounter   :: Unsigned 12
+                   , _vgaBlankVs :: Bit
+                   , _vgaVs      :: Bit
+                   , _counterX   :: Unsigned 12
+                   , _counterY   :: Unsigned 12
                    }
 
-type VGACI = (Unsigned D12, Unsigned D12, Unsigned D12, Unsigned D12, Unsigned D12, Unsigned D12, Unsigned D12, Unsigned D12)
-type VGACO = ((Bit,Bit),Bit,Unsigned D12, Unsigned D12)
+makeLenses ''VGACS
 
-vgaControllerT :: State VGACS -> VGACI -> (State VGACS, VGACO)
-vgaControllerT (State s@(VGACS{..})) inp = (State s', outp)
-  where
-    (hDisp,hFrontPorch,hSync,hBackPorch,vDisp,vFrontPorch,vSync,vBackPorch) = inp
-    outp = ((vgaHs,vgaVs),vgaBlank,counterX,counterY)
-    
-    s'  = s { hCounter   = hCounter'
-            , vgaBlankHs = vgaBlankHs'
-            , vgaHs      = vgaHs'
-            , vCounter   = vCounter'
-            , vgaBlankVs = vgaBlankVs'
-            , vgaVs      = vgaVs'
-            , counterX   = counterX'
-            , counterY   = counterY'
-            }
-        
-    -- HSync    
-    hTotal = hDisp + hFrontPorch + hSync + hBackPorch
-    
-    hCounter' = if hCounter > (hTotal-1) then 0 else hCounter + 1
-    
-    (vgaBlankHs',vgaHs')  
-      | hCounter == 0                                  = (Low ,High)
-      | hCounter == hFrontPorch                        = (Low ,Low )
-      | hCounter == (hFrontPorch + hSync)              = (Low ,High)
-      | hCounter == (hFrontPorch + hSync + hBackPorch) = (High,High)
-      | otherwise = (vgaBlankHs,vgaHs)
-    
-    -- VSync
-    vgaHsR = hCounter == (hFrontPorch + hSync)
-    
-    vTotal = vDisp + vFrontPorch + vSync + vBackPorch
-    
-    vCounter' = if vgaHsR then
-        if vCounter > (vTotal-1) then 0 else vCounter + 1
-      else
-        vCounter
-        
-    (vgaBlankVs',vgaVs') = if vgaHsR then (vgaBlankVs'',vgaVs'') else (vgaBlankVs,vgaVs)
-    (vgaBlankVs'',vgaVs'')
-      | vCounter == 0                                  = (Low ,High)
-      | vCounter == vFrontPorch                        = (Low ,Low )
-      | vCounter == (vFrontPorch + vSync)              = (Low ,High)
-      | vCounter == (vFrontPorch + vSync + vBackPorch) = (High,High)
-      | otherwise = (vgaBlankVs,vgaVs)
-    
-    -- Sync Timing Output
-    vgaBlank = vgaBlankVs `hwand` vgaBlankHs
+-- import DE1Types
+vgaController
+  :: (Signal (Unsigned 12),
+      Signal (Unsigned 12),
+      Signal (Unsigned 12),
+      Signal (Unsigned 12),
+      Signal (Unsigned 12),
+      Signal (Unsigned 12),
+      Signal (Unsigned 12),
+      Signal (Unsigned 12))
+     -> (Signal (Bit, Bit),
+         Signal Bit,
+         Signal (Unsigned 12),
+         Signal (Unsigned 12))
+vgaController = withStateM vgaInit $ \(hDisp,hFrontPorch,hSync,hBackPorch,vDisp,vFrontPorch,vSync,vBackPorch) -> do
+  (VGACS{..}) <- get
 
-    counterX' = if vgaBlankHs == Low then 0 else counterX + 1
-    counterY' = if vgaHsR then
-        if vgaBlankVs == Low then 0 else counterY + 1
-      else
-        counterY
+  -- HSync
+  let hTotal = hDisp + hFrontPorch + hSync + hBackPorch
+  hCounter .= if _hCounter > hTotal  - 1 then 0 else _hCounter - 1
+
+  let (vgaBlankHs',vgaHs')
+        | _hCounter == 0                                  = (L,H)
+        | _hCounter == hFrontPorch                        = (L,L)
+        | _hCounter == (hFrontPorch + hSync)              = (L,H)
+        | _hCounter == (hFrontPorch + hSync + hBackPorch) = (H,H)
+        | otherwise = (_vgaBlankVs,_vgaHs)
+
+  vgaBlankHs .= vgaBlankHs'
+  vgaHs      .= vgaHs'
+
+  -- VSync
+  let vgaHsR = _hCounter == (hFrontPorch + hSync)
+      vTotal = vDisp + vFrontPorch + vSync + vBackPorch
+
+  vCounter .= if vgaHsR then (if _vCounter > vTotal - 1 then 0 else _vCounter + 1)
+                        else _vCounter
+
+  let (vgaBlankVs'',vgaVs'')
+        | _vCounter == 0                                  = (L,H)
+        | _vCounter == vFrontPorch                        = (L,L)
+        | _vCounter == (vFrontPorch + vSync)              = (L,H)
+        | _vCounter == (vFrontPorch + vSync + vBackPorch) = (H,H)
+        | otherwise = (_vgaBlankVs,_vgaVs)
+      (vgaBlankVs',vgaVs') = if vgaHsR then (vgaBlankVs'',vgaVs'') else (_vgaBlankVs,_vgaVs)
+
+  vgaBlankVs .= vgaBlankVs'
+  vgaVs      .= vgaVs'
+
+  -- Sync timing output
+  let vgaBlank = _vgaBlankVs .|. _vgaBlankHs
+  counterX .= if _vgaBlankHs == L then 0 else _counterX + 1
+  counterY .= if vgaHsR then (if _vgaBlankVs == L then 0 else _counterX + 1)
+                        else _counterY
+
+  return ((_vgaHs,_vgaVs),vgaBlank,_counterX,_counterY)

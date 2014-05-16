@@ -2,13 +2,20 @@ module Utils where
 
 import CLaSH.Prelude
 import CLaSH.Prelude.Explicit
+import Control.Monad.State
+
 import DE1Types
 
--- synchronize :: State (Vector D2 a) -> a -> (State (Vector D2 a), a)
--- synchronize (State s) inp = (State s', outp)
---   where
---     s'   = inp +>> s
---     outp = vlast s
+withStateM :: (Pack i, Pack o)
+           => s
+           -> (i -> State s o)
+           -> SignalP i
+           -> SignalP o
+withStateM initS f = f' <^> initS
+  where
+    f' = \s i -> let (o,s') = runState (f i) s
+                 in  (s',o)
+
 wordSynchronize :: Clock clkIn -> Clock clkOut
                 -> a
                 -> CSignal clkIn  a
