@@ -6,19 +6,31 @@ import CLaSH.Prelude.Explicit
 -- ==========
 -- = Clocks =
 -- ==========
-sysclock :: Clock 1000
-sysclock = Clock d1000
 
-bclkClock :: Clock 300
-bclkClock = Clock d300
+-- Already defined in "CLaSH.Prelude.Explicit"
+--
+-- type SystemClock = Clk "system" 1000
+-- systemClock :: SClock SystemClock
 
-fftClock :: Clock 200
-fftClock = Clock d200
+type BClkClock = Clk "bclk" 3000
+
+bclkClock :: SClock BClkClock
+bclkClock = sclock
+
+type FFTClock = Clk "fft" 2000
+
+fftClock :: SClock FFTClock
+fftClock = sclock
+
+type KBClock = Clk "keyboard" 8000
+
+kbClock :: SClock KBClock
+kbClock = sclock
 
 -- ================
 -- = Type Aliases =
 -- ================
-type SegDisp     = Vec 7 Bit
+type SegDisp     = BitVector 7
 type Scancode    = Vec 8 Bit
 type Key         = Unsigned 8
 type Stepsize    = Signed 16
