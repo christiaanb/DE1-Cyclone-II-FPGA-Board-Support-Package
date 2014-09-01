@@ -1,41 +1,47 @@
-{-# LANGUAGE Arrows #-}
 module Keyboard.CaptureKey (captureKey) where
 
-import CLasH.HardwareTypes
+import CLaSH.Prelude
+import CLaSH.Prelude.Explicit
 import DE1Types
 import Utils
 
-type CaptureKeyS = (Vector D10 Bit, Index D12, Bit)
+type CaptureKeyS = (Vec 10 Bit, Index 12, Bit)
 type CaptureKeyI = (Bit,Bit)
 type CaptureKeyO = (SegDisp,SegDisp,Scancode,Bool)
 
-captureKey = proc (kbdata,kbclock) -> do
-  (kbdataS,kbclockS) <- comp synchronize kbdataInit sysclock     -< (kbdata,kbclock)
-  outp               <- comp captureKeyT captureKeyInit sysclock -< (kbdataS,kbclockS)
-  returnA -< outp
+captureKey :: CSignal KBClock (Bit,Bit)
+           -> Wrapped SystemClock CaptureKeyO
+captureKey kbInp = captureOut
+  where
+    kbInpS     = wordSynchronize kbClock systemClock kbdataInit kbInp
+    captureOut = (captureKeyT <^> captureKeyInit) (sWrap kbInpS)
 
-kbdataInit = vcopy (Low,High)
+kbdataInit :: (Bit,Bit)
+kbdataInit = (low,high)
 
 captureKeyInit :: CaptureKeyS
-captureKeyInit = (vcopy Low, 0, High)
+captureKeyInit = (repeat low, 0, high)
 
-captureKeyT :: State CaptureKeyS -> CaptureKeyI -> (State CaptureKeyS, CaptureKeyO)
-captureKeyT (State (buffer,iteration,kbclockP)) (kbdata,kbclock) = (State (buffer',iteration',kbclockP'), (dig3,dig2,scancode,byteRead))
+captureKeyT :: CaptureKeyS
+            -> CaptureKeyI
+            -> (CaptureKeyS, CaptureKeyO)
+captureKeyT (buffer,iteration,kbclockP) (kbdata,kbclock) =
+    ((buffer',iteration',kbclockP'), (dig3,dig2,scancode,byteRead))
   where
     kbclockP' = kbclock
-    
-    kbClockFalling = kbclockP == High && kbclock == Low
-    
-    buffer' = if kbClockFalling then kbdata +>> buffer else buffer
-    
+
+    kbClockFalling = kbclockP == high && kbclock == low
+
+    buffer' = if kbClockFalling then buffer <<+ kbdata else buffer
+
 
     iteration' = if kbClockFalling then
         if iteration /= 11 then iteration + 1 else 1
       else
         iteration
-               
-    scancode = vdrop d2 buffer
+
+    scancode = pack (take d8 buffer)
     byteRead = iteration == 11
-    
-    dig3     = hex2display (bv2u (vtake d4 scancode))
-    dig2     = hex2display (bv2u (vdrop d4 scancode))
+
+    dig3     = hex2display (fst (split scancode))
+    dig2     = hex2display (snd (split scancode))

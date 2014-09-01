@@ -1,4 +1,9 @@
-module DE1Types where
+module DE1Types
+  ( module DE1Types
+  , SystemClock
+  , systemClock
+  )
+where
 
 import CLaSH.Prelude
 import CLaSH.Prelude.Explicit
@@ -31,8 +36,7 @@ kbClock = sclock
 -- = Type Aliases =
 -- ================
 type SegDisp     = BitVector 7
-type Scancode    = Vec 8 Bit
-type Key         = Unsigned 8
+type Scancode    = BitVector 8
 type Stepsize    = Signed 16
 type I2CIn       = (Bit,Bit)
 type I2COut      = (Bit,Bool,Bit,Bool)

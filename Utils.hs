@@ -39,22 +39,22 @@ pulseHigh = pulseHigh' <^> low
 
 enable a = if a then high else low
 
-hex2display :: Unsigned 4 -> SegDisp
+hex2display :: BitVector 4 -> SegDisp
 hex2display u = case u of
---            0,1,2,3,4,5,6
-  0x0 -> $$(bLit "0000001")
-  0x1 -> $$(bLit "1001111")
-  0x2 -> $$(bLit "0010010")
-  0x3 -> $$(bLit "0000110")
-  0x4 -> $$(bLit "1001100")
-  0x5 -> $$(bLit "0100100")
-  0x6 -> $$(bLit "0100000")
-  0x7 -> $$(bLit "0001111")
+--                6543210
+  0x0 -> $$(bLit "1000000")
+  0x1 -> $$(bLit "1111001")
+  0x2 -> $$(bLit "0100100")
+  0x3 -> $$(bLit "0110000")
+  0x4 -> $$(bLit "0011001")
+  0x5 -> $$(bLit "0010010")
+  0x6 -> $$(bLit "0000010")
+  0x7 -> $$(bLit "1111000")
   0x8 -> $$(bLit "0000000")
-  0x9 -> $$(bLit "0000100")
+  0x9 -> $$(bLit "0010000")
   0xA -> $$(bLit "0001000")
-  0xB -> $$(bLit "1100000")
-  0xC -> $$(bLit "0110001")
-  0xD -> $$(bLit "1000010")
-  0xE -> $$(bLit "0110000")
-  x   -> $$(bLit "0111000")
+  0xB -> $$(bLit "0000011")
+  0xC -> $$(bLit "1000110")
+  0xD -> $$(bLit "0100001")
+  0xE -> $$(bLit "0000110")
+  f   -> $$(bLit "0001110")
