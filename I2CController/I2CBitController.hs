@@ -69,6 +69,8 @@ i2cMasterBitCtrlInit =
        , busy           = False       -- busy signal
        }
 
+topEntity = i2cMasterBitCtrlT
+
 i2cMasterBitCtrlT :: BitCtrlS -> BitCtrlI -> (BitCtrlS, BitCtrlO)
 i2cMasterBitCtrlT  s@(BitS {..}) inp = (s', outp)
   where

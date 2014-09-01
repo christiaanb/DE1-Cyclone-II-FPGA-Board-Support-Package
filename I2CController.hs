@@ -7,6 +7,8 @@ import I2CController.I2CTypes
 import I2CController.I2CBitController
 import I2CController.I2CByteController
 
+-- topEntity = i2cController
+
 i2cController (rst,ena,clkCnt,start,stop,read,write,ackIn,din,i2cI) =
     (dout,hostAck,busy,al,ackOut,i2cO)
   where

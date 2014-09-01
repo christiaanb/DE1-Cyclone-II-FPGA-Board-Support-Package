@@ -20,7 +20,7 @@ data ByteCtrlS = ByteS { byteStateM :: ByteStateMachine -- State machine
                        , dcnt       :: Index 8          -- data counter
                        }
 
-type ByteCtrlI = (Bool,Bool,Bool,Bool,Bool,Bit,Vec 8 Bit,BitRespSig)
+type ByteCtrlI = (Bool,Bool,Bool,Bool,Bool,Bit,BitVector 8,BitRespSig)
 type ByteCtrlO = (Bool,Bit,Vec 8 Bit, BitCtrlSig)
 
 i2cMasterByteCtrlInit :: ByteCtrlS
@@ -86,8 +86,8 @@ i2cMasterByteCtrlT s@(ByteS {..}) inp = (s', outp)
 
     -- generate shift register
     sr' | rst       = repeat low
-        | ld        = din
-        | shiftsr   = sr <<+ coreRxd
+        | ld        = unpack din
+        | shiftsr   = coreRxd +>> sr
         | otherwise = sr
 
     dcnt' | rst       = 0
@@ -98,7 +98,7 @@ i2cMasterByteCtrlT s@(ByteS {..}) inp = (s', outp)
     cntDone = dcnt == 0
 
     -- state machine
-    sd   = s  {coreTxd = head sr, shiftsr = False, ld = False, hostAck = False}
+    sd   = s  {coreTxd = last sr, shiftsr = False, ld = False, hostAck = False}
     sdl  = sd {ld = True}
     sdst = sd {shiftsr = True, coreTxd = ackIn}
     sdat = sd { ackOut  = coreRxd -- assign ackOut output to coreRxd (contains last received bit)
