@@ -1,10 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
 module I2CController.I2CByteController  where
 
-import CLasH.HardwareTypes
+import CLaSH.Prelude
 import DE1Types
 import I2CController.I2CTypes
-import Debug.Trace
 import Utils
 
 data ByteStateMachine = BYTEidle | BYTEstart | BYTEread | BYTEwrite | BYTEack | BYTEstop
@@ -17,27 +16,27 @@ data ByteCtrlS = ByteS { byteStateM :: ByteStateMachine -- State machine
                        , ld         :: Bool             -- load values in to sr
                        , hostAck    :: Bool             -- host cmd acknowlegde register
                        , ackOut     :: Bit              -- slave ack register
-                       , sr         :: Vector D8 Bit    -- shift register
-                       , dcnt       :: Index D8         -- data counter
+                       , sr         :: Vec 8 Bit        -- shift register
+                       , dcnt       :: Index 8          -- data counter
                        }
 
-type ByteCtrlI = (Bool,Bool,Bool,Bool,Bool,Bit,Vector D8 Bit,BitRespSig)
-type ByteCtrlO = (Bool,Bit,Vector D8 Bit, BitCtrlSig)
+type ByteCtrlI = (Bool,Bool,Bool,Bool,Bool,Bit,Vec 8 Bit,BitRespSig)
+type ByteCtrlO = (Bool,Bit,Vec 8 Bit, BitCtrlSig)
 
 i2cMasterByteCtrlInit :: ByteCtrlS
 i2cMasterByteCtrlInit = ByteS { byteStateM = BYTEidle
                               , coreCmd    = I2Cnop
-                              , coreTxd    = Low
+                              , coreTxd    = low
                               , shiftsr    = False
                               , ld         = False
                               , hostAck    = False
-                              , ackOut     = High
-                              , sr         = vcopy Low
+                              , ackOut     = high
+                              , sr         = repeat low
                               , dcnt       = 0
                               }
 
-i2cMasterByteCtrlT :: State ByteCtrlS -> ByteCtrlI -> (State ByteCtrlS, ByteCtrlO)
-i2cMasterByteCtrlT (State s@(ByteS {..})) inp = (State s', outp)
+i2cMasterByteCtrlT :: ByteCtrlS -> ByteCtrlI -> (ByteCtrlS, ByteCtrlO)
+i2cMasterByteCtrlT s@(ByteS {..}) inp = (s', outp)
   where
     -- ==========
     -- = Inputs =
@@ -47,11 +46,11 @@ i2cMasterByteCtrlT (State s@(ByteS {..})) inp = (State s', outp)
     -- stop   : generate stop command
     -- read   : generate read sequence
     -- write  : generate write sequence
-    -- ackIn  : send (n)ack to slave 
+    -- ackIn  : send (n)ack to slave
     -- din    : value for write sequence
     -- bitResp: output from master bit controller
     (rst,start,stop,read,write,ackIn,din,bitResp) = inp
-    
+
     -- ===============================
     -- = Signals from bit controller =
     -- ===============================
@@ -59,7 +58,7 @@ i2cMasterByteCtrlT (State s@(ByteS {..})) inp = (State s', outp)
     -- al     : arbitration lost
     -- coreRxd: received bit
     (coreAck,al,coreRxd) = bitResp
-    
+
     -- ===========
     -- = Outputs =
     -- ===========
@@ -68,47 +67,47 @@ i2cMasterByteCtrlT (State s@(ByteS {..})) inp = (State s', outp)
     -- dout   : byte received from slave
     -- bitCtrl: input for master bit controller
     outp = (hostAck,ackOut,dout,bitCtrl)
-    
+
     -- ==============================
     -- = Signals for bit controller =
     -- ==============================
     -- coreCmd: command to executre
     -- coreTxd: bit to send
     bitCtrl = (coreCmd,coreTxd)
-    
+
     -- update registers
     s' = stateMachine { sr = sr', dcnt = dcnt' }
 
     -- generate go-signal
     go = (read || write || stop) && (not hostAck)
-    
+
     -- assign dOut the output of the shift-register
     dout = sr
-    
+
     -- generate shift register
-    sr' | rst       = vcopy Low
+    sr' | rst       = repeat low
         | ld        = din
         | shiftsr   = sr <<+ coreRxd
         | otherwise = sr
-    
+
     dcnt' | rst       = 0
           | ld        = 7
           | shiftsr   = dcnt - 1
           | otherwise = dcnt
-          
+
     cntDone = dcnt == 0
-    
+
     -- state machine
-    sd   = s  {coreTxd = vhead sr, shiftsr = False, ld = False, hostAck = False}
+    sd   = s  {coreTxd = head sr, shiftsr = False, ld = False, hostAck = False}
     sdl  = sd {ld = True}
     sdst = sd {shiftsr = True, coreTxd = ackIn}
     sdat = sd { ackOut  = coreRxd -- assign ackOut output to coreRxd (contains last received bit)
-              , coreTxd = High
+              , coreTxd = high
               }
     sdt  = sd {coreTxd = ackIn}
-    
+
     stateMachine = if rst || al then
-        s {coreCmd = I2Cnop, coreTxd = Low, shiftsr = False, ld = False, hostAck = False, byteStateM = BYTEidle, ackOut = High}
+        s {coreCmd = I2Cnop, coreTxd = low, shiftsr = False, ld = False, hostAck = False, byteStateM = BYTEidle, ackOut = high}
       else
         case byteStateM of
           BYTEidle -> if go then
@@ -122,7 +121,7 @@ i2cMasterByteCtrlT (State s@(ByteS {..})) inp = (State s', outp)
                 sdl {byteStateM = BYTEstop , coreCmd = I2Cstop}
             else
               sd
-              
+
           BYTEstart -> if coreAck then
               if read then
                 sdl {byteStateM = BYTEread , coreCmd = I2Cread }
@@ -130,7 +129,7 @@ i2cMasterByteCtrlT (State s@(ByteS {..})) inp = (State s', outp)
                 sdl {byteStateM = BYTEwrite, coreCmd = I2Cwrite}
             else
               sd
-              
+
           BYTEwrite -> if coreAck then
               if cntDone then
                 sd {byteStateM = BYTEack, coreCmd = I2Cread}
@@ -141,7 +140,7 @@ i2cMasterByteCtrlT (State s@(ByteS {..})) inp = (State s', outp)
                    }
             else
               sd
-              
+
           BYTEread -> if coreAck then
               if cntDone then
                 sdst {byteStateM = BYTEack, coreCmd = I2Cwrite}
@@ -151,7 +150,7 @@ i2cMasterByteCtrlT (State s@(ByteS {..})) inp = (State s', outp)
                      }
             else
               sd
-              
+
           BYTEack -> if coreAck then
             -- check for stop; Should a STOP command be generated?
               if stop then
@@ -163,7 +162,7 @@ i2cMasterByteCtrlT (State s@(ByteS {..})) inp = (State s', outp)
                      }
             else
               sdt
-          
+
           BYTEstop -> if coreAck then
               sd { byteStateM = BYTEidle
                  , coreCmd    = I2Cstop
@@ -171,4 +170,4 @@ i2cMasterByteCtrlT (State s@(ByteS {..})) inp = (State s', outp)
                  }
             else
               sd
-    
+
