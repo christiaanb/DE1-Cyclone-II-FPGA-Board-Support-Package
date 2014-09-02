@@ -39,6 +39,9 @@ pulseHigh = pulseHigh' <^> low
 
 enable a = if a then high else low
 
+(<<#) :: KnownNat n => BitVector (1 + n) -> Bit -> BitVector (n + 1)
+bv <<# b = snd (split bv) ++# b
+
 hex2display :: BitVector 4 -> SegDisp
 hex2display u = case u of
 --                6543210

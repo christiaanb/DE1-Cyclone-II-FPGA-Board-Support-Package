@@ -1,9 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
-module I2CController.I2CBitController where
+module I2CController.I2CBitController
+  (i2cMasterBitCtrl)
+where
 
 import CLaSH.Prelude
 import DE1Types
 import I2CController.I2CTypes
+import Utils
 
 data BitStateMachine = BITidle |
                        BITstartA | BITstartB | BITstartC | BITstartD | BITstartE |
@@ -12,306 +15,365 @@ data BitStateMachine = BITidle |
                        BITwrA | BITwrB | BITwrC | BITwrD
   deriving Eq
 
-data BitCtrlS =
-  BitS { bitStateM      :: BitStateMachine -- State Machine
-       , cmdAck         :: Bool            -- Command acknowledged register
-       , sclOen         :: Bool            -- i2c clock output enable register
-       , sdaOen         :: Bool            -- i2c data output enable register
-       , sdaChk         :: Bool            -- check SDA statur (multi-master arbitration)
-       , dout           :: Bit             -- dout register
-       , dsclOen        :: Bool            -- delayed sclOen signal
-       , sSCL           :: Bit             -- synchronized SCL input
-       , sSDA           :: Bit             -- synchronized SDA input
-       , dSCL           :: Bit             -- delayed sSCL
-       , dSDA           :: Bit             -- delayed sSDA
-       , clkEn          :: Bool            -- statemachine clock enable
-       , slaveWait      :: Bool            -- clock generation signal
-       , al             :: Bool            -- arbitration lost register
-       , cnt            :: Unsigned 16     -- clock devider counter (synthesis)
-       , cSCL           :: Vec 2 Bit       -- capture SCL
-       , cSDA           :: Vec 2 Bit       -- capture SDA
-       , fSCL           :: Vec 3 Bit       -- filter input for SCL
-       , fSDA           :: Vec 3 Bit       -- filter input for SDA
-       , filterCnt      :: Unsigned 14     -- clock divider for filter
-       , startCondition :: Bool            -- start detected
-       , stopCondition  :: Bool            -- stop detected
-       , cmdStop        :: Bool            -- STOP command
-       , busy           :: Bool            -- busy signal
-       }
+data MachineState =
+  MachineState
+    { bitStateM :: BitStateMachine -- State Machine
+    , cmdAck    :: Bool            -- Command acknowledged register
+    , sclOen    :: Bool            -- i2c clock output enable register
+    , sdaOen    :: Bool            -- i2c data output enable register
+    , sdaChk    :: Bool            -- check SDA statur (multi-master arbitration)
+    }
 
-type BitCtrlI = (Bool,Bool,Unsigned 16,BitCtrlSig,I2CIn)
-type BitCtrlO = (BitRespSig,Bool,I2COut)
-
-i2cMasterBitCtrlInit =
-  BitS { bitStateM      = BITidle     -- State Machine
-       , cmdAck         = False       -- Command acknowledged register
-       , sclOen         = True        -- i2c clock output enable register
-       , sdaOen         = True        -- i2c data output enable register
-       , sdaChk         = False       -- check SDA statur (multi-master arbitration)
-       , dout           = high        -- dout register
-       , dsclOen        = False       -- delayed sclOen signal
-       , sSCL           = high        -- synchronized SCL input
-       , sSDA           = high        -- synchronized SDA input
-       , dSCL           = high        -- delayed sSCL
-       , dSDA           = high        -- delayed sSDA
-       , clkEn          = True        -- statemachine clock enable
-       , slaveWait      = False       -- clock generation signal
-       , al             = False       -- arbitration lost register
-       , cnt            = 0           -- clock devider counter (synthesis)
-       , cSCL           = repeat high -- capture SCL
-       , cSDA           = repeat high -- capture SDA
-       , fSCL           = repeat high -- filter input for SCL
-       , fSDA           = repeat high -- filter input for SDA
-       , filterCnt      = 0           -- clock divider for filter
-       , startCondition = False       -- start detected
-       , stopCondition  = False       -- stop detected
-       , cmdStop        = False       -- STOP command
-       , busy           = False       -- busy signal
-       }
-
-topEntity = i2cMasterBitCtrlT
-
-i2cMasterBitCtrlT :: BitCtrlS -> BitCtrlI -> (BitCtrlS, BitCtrlO)
-i2cMasterBitCtrlT  s@(BitS {..}) inp = (s', outp)
+i2cMasterBitCtrl :: Signal (Unsigned 16)
+                 -> SWrapped BitCtrlSig
+                 -> Signal I2CIn
+                 -> (SWrapped BitRespSig, Signal I2COut)
+i2cMasterBitCtrl clkCnt (cmd,dIn) i2cIn = ((icmdAck,al,busy,dout),i2cOut)
   where
-    -- ==========
-    -- = Inputs =
-    -- ==========
-    -- rst   : synchronous reset, assert high
-    -- ena   : core enable signal
-    -- clkCnt: clock prescale value
-    -- cmd   : command to execute
-    -- din   : bit to write to SDA
-    -- i2cI  : i2c input lines
-    (rst,ena,clkCnt,(cmd,din),i2cI) = inp
-
-    -- ===========
-    -- = Outputs =
-    -- ===========
-    -- cmdAck: command complete
-    -- busy  : i2c bus busy
-    -- al    : arbitration lost
-    -- dout  : bit read from SDA
-    -- i2cO  : i2c output lines
-    outp = ((cmdAck,al,dout),busy,i2cO)
-
-    -- =============
-    -- = i2c lines =
-    -- =============
-    -- sclI:   i2c clock line input
-    -- sclO:   i2c clock line output
-    -- sclOen: i2c clock line output enable, active low
-    -- sdaI:   i2c data line input
-    -- sdaO:   i2c data line output
-    -- sdaOen: i2c data line outputs enable, active low
-    (sclI,sdaI) = i2cI
-    i2cO = (sclO,sclOen,sdaO,sdaOen)
-
-    -- Assign outputs
-    sclO = low
-    sdaO = low
-
-    -- Update registers
-    s' = stateMachine { dout           = dout'           -- dout register
-                      , dsclOen        = dsclOen'        -- delayed sclOen signal
-                      , sSCL           = sSCL'           -- synchronized SCL input
-                      , sSDA           = sSDA'           -- synchronized SDA input
-                      , dSCL           = dSCL'           -- delayed sSCL
-                      , dSDA           = dSDA'           -- delayed sSDA
-                      , clkEn          = clkEn'          -- statemachine clock enable
-                      , slaveWait      = slaveWait'      -- clock generation signal
-                      , al             = al'             -- arbitration lost register
-                      , cnt            = cnt'            -- clock devider counter (synthesis)
-                      , cSCL           = cSCL'           -- capture SCL
-                      , cSDA           = cSDA'           -- capture SDA
-                      , fSCL           = fSCL'           -- filter input for SCL
-                      , fSDA           = fSDA'           -- filter input for SDA
-                      , filterCnt      = filterCnt'      -- clock divider for filter
-                      , startCondition = startCondition' -- start detected
-                      , stopCondition  = stopCondition'  -- stop detected
-                      , cmdStop        = cmdStop'        -- STOP command
-                      , busy           = busy'           -- busy signal
-                      }
-
-    -- Whenever the slave is not ready it can delay the cycle by pulling SCL low
-    -- delay scloEn
-    dsclOen' = sclOen
-
-    -- slaveWait is asserted when the master wants to drive SCL high, but the slave pulls it low
-    -- slaveWait remains asserted until the slave releases SCL
-    slaveWait' = (sclOen && (not dsclOen) && sSCL == low) || (slaveWait && sSCL == low)
+    -- whenever the slave is not ready it can delay the cycle by pulling SCL low
+    -- slave_wait is asserted when master wants to drive SCL high, but the slave pulls it low
+    -- slave_wait remains asserted until the slave releases SCL
+    isclOenFalling = isFalling False isclOen
+    slaveWait      = register False slaveWait'
+    slaveWait'     = syncSCL ==& 0 &&$ (isclOenFalling ||$ slaveWait)
 
     -- master drives SCL high, but another master pulls it low
-    -- master start counting down it low cycle now (clock synchronization)
-    sclSync = dSCL == high && sSCL == low && sclOen
+    -- master start counting down its low cycle now (clock synchronization)
+    sclFalling = isFalling 1 syncSCL
+    sclSync    = sclFalling &&$ isclOen
 
     -- generate clk enable signal
-    (cnt',clkEn') | rst || cnt == 0 || not ena || sclSync = (clkCnt,True )
-                  | slaveWait                             = (cnt   ,False)
-                  | otherwise                             = (cnt-1 ,False)
+    clkEn      = genClkEn (sclSync, slaveWait, clkCnt)
 
-    -- capture SCL and SDA
-    (cSCL',cSDA') | rst       = (repeat low   , repeat low   )
-                  | otherwise = (cSCL <<+ sclI, cSDA <<+ sdaI)
+    -- generate bus status controller
+    (busy,al,dout,syncSCL) = busStatusControl i2cIn clkCnt clkEn cmd cState isdaChk isdaOen
 
-    -- filter SCL and SDA; (attempt to remove glitches)
-    filterCnt' | rst || not ena = 0
-               | filterCnt == 0 = resize (shiftR clkCnt 2)
-               | otherwise      = filterCnt - 1
-    (fSCL',fSDA') | rst            = (repeat high         , repeat high          )
-                  | filterCnt == 0 = (fSCL <<+ (head cSCL), fSDA <<+ (head cSDA))
-                  | otherwise      = (fSCL                , fSDA                 )
+    -- generate next state
+    sm  = register startState sm'
+    sm' = nextStateDecoder <$> sm <*> al <*> clkEn <*> cmd <*> dIn
 
-    -- filtered SCL and SDA signals
-    (sSCL',sSDA') = if rst then (high,high) else
-      ( ((fSCL!!2) .&. (fSCL!!1)) .|.
-        ((fSCL!!2) .&. (fSCL!!0)) .|.
-        ((fSCL!!1) .&. (fSCL!!0))
-      , ((fSDA!!2) .&. (fSDA!!1)) .|.
-        ((fSDA!!2) .&. (fSDA!!0)) .|.
-        ((fSDA!!1) .&. (fSDA!!0))
-      )
-    (dSCL',dSDA') = (sSCL,sSDA)
+    -- Extract command information
+    icmdAck = cmdAck <$> sm
+    isdaChk = sdaChk <$> sm
+    cState  = bitStateM <$> sm
+    isclOen = sclOen <$> sm
+    isdaOen = sdaOen <$> sm
+
+    i2cOut     = sUnwrap (0,isclOen,0,isdaOen)
+
+genClkEn :: ( Signal Bool
+            , Signal Bool
+            , Signal (Unsigned 16)
+            )
+         -> Signal Bool
+genClkEn = genClkEnT <^> (0,True)
+  where
+    genClkEnT (cnt,clkEn) (sclSync,slaveWait,clkCnt) = ((cnt',clkEn'), clkEn)
+      where
+        (cnt',clkEn') = if cnt == 0 || sclSync
+                           then (clkCnt,True)
+                           else if slaveWait
+                                   then (cnt  ,False)
+                                   else (cnt-1,False)
+
+busStatusControl :: Signal (Bit,Bit)
+                 -> Signal (Unsigned 16)
+                 -> Signal Bool
+                 -> Signal I2CCommand
+                 -> Signal BitStateMachine
+                 -> Signal Bool
+                 -> Signal Bool
+                 -> (Signal Bool, Signal Bool, Signal Bit, Signal Bit)
+busStatusControl i2cIn clkCnt clkEn cmd cState sdaChk iSdaOen =
+    (busy,al,dout,syncSCL)
+  where
+    -- capture scl and sda
+    i2cCaptured = captureSclSda i2cIn
+
+    -- filter SCL and SDA; (attempt to) remove glitches
+    filterCnt   = filterDivider clkCnt
+    i2cFiltered = filterSclSda filterCnt i2cCaptured
+
+    -- generate filtered/synchronised SCL and SDA signals
+    (syncSCL, syncSDA) = syncSclSda i2cFiltered
 
     -- detect start condition => detect falling edge on SDA while SCL is high
-    -- detect stop condition  => detect rising edge on SDA wile SCL is high
-    (startCondition',stopCondition') = if rst then (False,False) else
-      ( (sSDA == low  && dSDA == high) && (sSCL == high)
-      , (sSDA == high && dSDA == low ) && (sSCL == high)
-      )
+    -- detect stop condition  => detect rising edge on SDA while SCL is high
+    sdaFalling = isFalling 1 syncSDA
+    sdaRising  = isRising 1 syncSDA
 
-    -- i2c busy signal
-    busy' = if rst then False else (startCondition || busy) && (not stopCondition)
+    (startCondition,stopCondition) = detectStartStop sdaFalling sdaRising syncSCL
+
+    -- generate i2c-bus busy signal
+    busy = genBusy startCondition stopCondition
 
     -- generate arbitration lost signal
-    -- arbitration lost when:
+    -- aribitration lost when:
     -- 1) master drives SDA high, but the i2c bus is low
     -- 2) stop detected while not requested (detect during 'idle' state)
-    (cmdStop',al') = if rst then
-        (False,False)
-      else
-        ( if clkEn then (if cmd == I2Cstop then True else False) else cmdStop
-        , if bitStateM == BITidle then
-              (sdaChk && sSDA == low && sdaOen) || (stopCondition && (not cmdStop))
-            else
-              (sdaChk && sSDA == low && sdaOen)
-        )
+    al = genArbitrationLost (clkEn,cmd,cState,sdaChk,syncSDA,iSdaOen,stopCondition)
 
     -- generate dout signal, store dout on rising edge of SCL
-    dout' = if sSCL == high && dSCL == low then sSDA else dout
+    sclRising = isRising 1 syncSCL
+    dout      = genDout sclRising syncSDA
 
-    -- generate state machine
-    sd = s {cmdAck = False}
+-- capture SCL and SDA
+captureSclSda :: Signal (Bit,Bit)
+              -> (Signal (BitVector 2, BitVector 2))
+captureSclSda i2cIn = i2cCaptured
+  where
+    i2cCaptured  = register (0,0) i2cCaptured'
+    i2cCaptured' = captureSclSdaT <$> i2cIn <*> i2cCaptured
 
-    stateMachine = if rst || al then
-        s {bitStateM = BITidle, cmdAck = False, sclOen = True, sdaOen = True, sdaChk = False}
-      else if clkEn then
-          case bitStateM of
-            -- idle
-            BITidle   -> sd { bitStateM = case cmd of
-                                  I2Cstart  -> BITstartA
-                                  I2Cstop   -> BITstopA
-                                  I2Cwrite  -> BITwrA
-                                  I2Cread   -> BITrdA
-                                  otherwise -> BITidle
-                            , sdaChk = False
-                            }
+    captureSclSdaT (sclI,sdaI) (cSCL,cSDA)
+      = ( msb cSCL ++# sclI
+        , msb cSDA ++# sdaI
+        )
 
-            -- start
-            BITstartA -> sd { bitStateM = BITstartB
-                            , sdaOen   = True   -- set SDA high
-                            , sdaChk   = False  -- don't check SDA
-                            }
-            BITstartB -> sd { bitStateM = BITstartC
-                            , sclOen   = True   -- set SCL high
-                            , sdaOen   = True   -- keep SDA high
-                            , sdaChk   = False  -- don't check SDA
-                            }
-            BITstartC -> sd { bitStateM = BITstartD
-                            , sclOen   = True   -- keep SCL high
-                            , sdaOen   = False  -- set SDA low
-                            , sdaChk   = False  -- don't check SDA
-                            }
-            BITstartD -> sd { bitStateM = BITstartE
-                            , sclOen   = True   -- keep SCL high
-                            , sdaOen   = False  -- keep SDA low
-                            , sdaChk   = False  -- don't check SDA
-                            }
-            BITstartE -> sd { bitStateM = BITidle
-                            , cmdAck   = True   -- command completed
-                            , sclOen   = False  -- set SCL low
-                            , sdaOen   = False  -- keep SDA low
-                            , sdaChk   = False  -- don't check SDA
-                            }
+-- filter SCL and SDA; (attempt to) remove glitches
+filterDivider :: Signal (Unsigned 16)
+              -> Signal (Unsigned 14)
+filterDivider clkCnt = filterCnt
+  where
+    filterCnt  = register 0 filterCnt'
+    filterCnt' = liftA2 (\c f -> if f == 0 then unpack (fst (split c)) else f - 1)
+                        clkCnt filterCnt
 
-            -- stop
-            BITstopA  -> sd { bitStateM = BITstopB
-                            , sclOen   = False  -- keep SCL Low
-                            , sdaOen   = False  -- set SDA low
-                            , sdaChk   = False  -- don't check SDA
-                            }
-            BITstopB  -> sd { bitStateM = BITstopC
-                            , sclOen   = True   -- set SCL High
-                            , sdaOen   = False  -- keep SDA low
-                            , sdaChk   = False  -- don't check SDA
-                            }
-            BITstopC  -> sd { bitStateM = BITstopD
-                            , sclOen   = True   -- keep SCL High
-                            , sdaOen   = False  -- keep SDA low
-                            , sdaChk   = False  -- don't check SDA
-                            }
-            BITstopD  -> sd { bitStateM = BITidle
-                            , cmdAck   = True   -- command completed
-                            , sclOen   = True   -- keep SCL High
-                            , sdaOen   = True   -- set SDA high
-                            , sdaChk   = False  -- don't check SDA
-                            }
+filterSclSda :: Signal (Unsigned 14)
+             -> Signal (BitVector 2, BitVector 2)
+             -> Signal (BitVector 3, BitVector 3)
+filterSclSda filterCnt i2cCaptured = i2cFiltered
+  where
+    i2cFiltered   = register (maxBound,maxBound) i2cFiltered'
+    i2cFiltered'  = filterSclSdaT <$> filterCnt <*> i2cFiltered <*> i2cCaptured
+    filterSclSdaT cnt (fSCL,fSDA) (cSCL,cSDA) =
+      if cnt == 0
+         then (fSCL <<# msb cSCL, fSDA <<# msb cSDA)
+         else (fSCL,fSDA)
 
-            -- read
-            BITrdA    -> sd { bitStateM = BITrdB
-                            , sclOen   = False  -- keep SCL Low
-                            , sdaOen   = True   -- tri-state SDA
-                            , sdaChk   = False  -- don't check SDA
-                            }
-            BITrdB    -> sd { bitStateM = BITrdC
-                            , sclOen   = True   -- set SCL High
-                            , sdaOen   = True   -- tri-state SDA
-                            , sdaChk   = False  -- don't check SDA
-                            }
-            BITrdC    -> sd { bitStateM = BITrdD
-                            , sclOen   = True   -- keep SCL High
-                            , sdaOen   = True   -- tri-state SDA
-                            , sdaChk   = False  -- don't check SDA
-                            }
-            BITrdD    -> sd { bitStateM = BITidle
-                            , cmdAck   = True   -- command completed
-                            , sclOen   = False  -- set SCL Low
-                            , sdaOen   = True   -- tri-state SDA
-                            , sdaChk   = False  -- don't check SDA
-                            }
+-- generate filtered SCL and SDA signals
+syncSclSda :: Signal (BitVector 3, BitVector 3)
+           -> (Signal Bit, Signal Bit)
+syncSclSda i2cFiltered = (syncSCL, syncSDA)
+  where
+    syncSCL = register maxBound (filterT <$> (fst <$> i2cFiltered))
+    syncSDA = register maxBound (filterT <$> (snd <$> i2cFiltered))
 
-            -- write
-            BITwrA    -> sd { bitStateM = BITwrB
-                            , sclOen   = False         -- keep SCL Low
-                            , sdaOen   = (din == high) -- set SDA
-                            , sdaChk   = False         -- don't check SDA (SCL low)
-                            }
-            BITwrB    -> sd { bitStateM = BITwrC
-                            , sclOen   = True          -- set SCL High
-                            , sdaOen   = (din == high) -- keep SDA
-                            , sdaChk   = False         -- don't check SDA yet
-                            }                          -- Allow some more time for SDA and SCL to settle
-            BITwrC    -> sd { bitStateM = BITwrD
-                            , sclOen   = True          -- keep SCL High
-                            , sdaOen   = (din == high) -- keep SDA
-                            , sdaChk   = True          -- check SDA
-                            }
-            BITwrD    -> sd { bitStateM = BITidle
-                            , cmdAck   = True          -- command completed
-                            , sclOen   = False         -- set SCL Low
-                            , sdaOen   = (din == high) -- keep SDA
-                            , sdaChk   = False         -- don't check SDA (SCL low)
-                            }
-        else
-          sd
+    filterT f = (f!2 .&. f!1) .|.
+                (f!2 .&. f!0) .|.
+                (f!1 .&. f!0)
 
+-- detect start condition => detect falling edge on SDA while SCL is high
+-- detect stop condition  => detect rising edge on SDA while SCL is high
+detectStartStop :: Signal Bool
+                -> Signal Bool
+                -> Signal Bit
+                -> (Signal Bool, Signal Bool)
+detectStartStop sdaFalling sdaRising syncSCL =
+    ( register False startCondition
+    , register False stopCondition
+    )
+  where
+    startCondition = sdaFalling &&$ syncSCL ==& 1
+    stopCondition  = sdaRising  &&$ syncSCL ==& 1
+
+genBusy :: Signal Bool
+        -> Signal Bool
+        -> Signal Bool
+genBusy startCondition stopCondition = busy
+  where
+    busy  = register False busy'
+    busy' = (startCondition ||$ busy) &&$ (not1 stopCondition)
+
+-- generate arbitration lost signal
+-- aribitration lost when:
+-- 1) master drives SDA high, but the i2c bus is low
+-- 2) stop detected while not requested (detect during 'idle' state)
+genArbitrationLost :: ( Signal Bool
+                      , Signal I2CCommand
+                      , Signal BitStateMachine
+                      , Signal Bool
+                      , Signal Bit
+                      , Signal Bool
+                      , Signal Bool
+                      )
+                   -> Signal Bool
+genArbitrationLost = genArbitrationLostT <^> (False,False)
+  where
+    genArbitrationLostT (cmdStop,al) (clkEn,cmd,cState,sdaChk,sSDA,iSdaOen,stopCondition)
+        = ((cmdStop',al'),al)
+      where
+        cmdStop' = if clkEn
+                      then cmd == I2Cstop
+                      else cmdStop
+
+        driveHighWhileLow = sdaChk && sSDA == 0 && iSdaOen
+
+        al'      = if cState == BITidle
+                      then driveHighWhileLow || (stopCondition && not cmdStop)
+                      else driveHighWhileLow
+
+-- generate dout signal, store dout on rising edge of SCL
+genDout :: Signal Bool
+        -> Signal Bit
+        -> Signal Bit
+genDout sclRising syncSDA = dout
+  where
+    dout  = register 0 dout'
+    dout' = mux sclRising syncSDA dout
+
+startState :: MachineState
+startState = MachineState BITidle False True True False
+
+nextStateDecoder :: MachineState
+                 -> Bool
+                 -> Bool
+                 -> I2CCommand
+                 -> Bit
+                 -> MachineState
+nextStateDecoder (MachineState {..}) al clkEn cmd din
+  | al    = startState
+  | clkEn = case bitStateM of
+      -- idle
+      BITidle   -> MachineState
+                      { bitStateM = case cmd of
+                            I2Cstart  -> BITstartA
+                            I2Cstop   -> BITstopA
+                            I2Cwrite  -> BITwrA
+                            I2Cread   -> BITrdA
+                            otherwise -> BITidle
+                      , cmdAck = False
+                      , sclOen = sclOen
+                      , sdaOen = sdaOen
+                      , sdaChk = False
+                      }
+
+      -- start
+      BITstartA -> MachineState
+                      { bitStateM = BITstartB
+                      , cmdAck    = False
+                      , sclOen    = sclOen
+                      , sdaOen    = True   -- set SDA high
+                      , sdaChk    = False  -- don't check SDA
+                      }
+      BITstartB -> MachineState
+                      { bitStateM = BITstartC
+                      , cmdAck    = False
+                      , sclOen    = True   -- set SCL high
+                      , sdaOen    = True   -- keep SDA high
+                      , sdaChk    = False  -- don't check SDA
+                      }
+      BITstartC -> MachineState
+                      { bitStateM = BITstartD
+                      , cmdAck    = False
+                      , sclOen    = True   -- keep SCL high
+                      , sdaOen    = False  -- set SDA low
+                      , sdaChk    = False  -- don't check SDA
+                      }
+      BITstartD -> MachineState
+                      { bitStateM = BITstartE
+                      , cmdAck   = False
+                      , sclOen   = True   -- keep SCL high
+                      , sdaOen   = False  -- keep SDA low
+                      , sdaChk   = False  -- don't check SDA
+                      }
+      BITstartE -> MachineState
+                      { bitStateM = BITidle
+                      , cmdAck   = True   -- command completed
+                      , sclOen   = False  -- set SCL low
+                      , sdaOen   = False  -- keep SDA low
+                      , sdaChk   = False  -- don't check SDA
+                      }
+
+      -- stop
+      BITstopA  -> MachineState
+                      { bitStateM = BITstopB
+                      , cmdAck   = False
+                      , sclOen   = False  -- keep SCL Low
+                      , sdaOen   = False  -- set SDA low
+                      , sdaChk   = False  -- don't check SDA
+                      }
+      BITstopB  -> MachineState
+                      { bitStateM = BITstopC
+                      , cmdAck   = False
+                      , sclOen   = True   -- set SCL High
+                      , sdaOen   = False  -- keep SDA low
+                      , sdaChk   = False  -- don't check SDA
+                      }
+      BITstopC  -> MachineState
+                      { bitStateM = BITstopD
+                      , cmdAck   = False
+                      , sclOen   = True   -- keep SCL High
+                      , sdaOen   = False  -- keep SDA low
+                      , sdaChk   = False  -- don't check SDA
+                      }
+      BITstopD  -> MachineState
+                      { bitStateM = BITidle
+                      , cmdAck   = True   -- command completed
+                      , sclOen   = True   -- keep SCL High
+                      , sdaOen   = True   -- set SDA high
+                      , sdaChk   = False  -- don't check SDA
+                      }
+
+      -- read
+      BITrdA    -> MachineState
+                      { bitStateM = BITrdB
+                      , cmdAck   = False
+                      , sclOen   = False  -- keep SCL Low
+                      , sdaOen   = True   -- tri-state SDA
+                      , sdaChk   = False  -- don't check SDA
+                      }
+      BITrdB    -> MachineState
+                      { bitStateM = BITrdC
+                      , cmdAck   = False
+                      , sclOen   = True   -- set SCL High
+                      , sdaOen   = True   -- tri-state SDA
+                      , sdaChk   = False  -- don't check SDA
+                      }
+      BITrdC    -> MachineState
+                      { bitStateM = BITrdD
+                      , cmdAck   = False
+                      , sclOen   = True   -- keep SCL High
+                      , sdaOen   = True   -- tri-state SDA
+                      , sdaChk   = False  -- don't check SDA
+                      }
+      BITrdD    -> MachineState
+                      { bitStateM = BITidle
+                      , cmdAck   = True   -- command completed
+                      , sclOen   = False  -- set SCL Low
+                      , sdaOen   = True   -- tri-state SDA
+                      , sdaChk   = False  -- don't check SDA
+                      }
+
+      -- write
+      BITwrA    -> MachineState
+                      { bitStateM = BITwrB
+                      , cmdAck   = False
+                      , sclOen   = False         -- keep SCL Low
+                      , sdaOen   = (din == high) -- set SDA
+                      , sdaChk   = False         -- don't check SDA (SCL low)
+                      }
+      BITwrB    -> MachineState
+                      { bitStateM = BITwrC
+                      , cmdAck   = False
+                      , sclOen   = True          -- set SCL High
+                      , sdaOen   = (din == high) -- keep SDA
+                      , sdaChk   = False         -- don't check SDA yet
+                      }                          -- Allow some more time for SDA and SCL to settle
+      BITwrC    -> MachineState
+                      { bitStateM = BITwrD
+                      , cmdAck   = False
+                      , sclOen   = True          -- keep SCL High
+                      , sdaOen   = (din == high) -- keep SDA
+                      , sdaChk   = True          -- check SDA
+                      }
+      BITwrD    -> MachineState
+                      { bitStateM = BITidle
+                      , cmdAck   = True          -- command completed
+                      , sclOen   = False         -- set SCL Low
+                      , sdaOen   = (din == high) -- keep SDA
+                      , sdaChk   = False         -- don't check SDA (SCL low)
+                      }
+  | otherwise =
+      MachineState {bitStateM = bitStateM, cmdAck = False, sclOen = sclOen,
+                    sdaOen = sdaOen, sdaChk = sdaChk}
