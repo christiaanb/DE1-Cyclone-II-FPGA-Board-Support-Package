@@ -1,5 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
-module I2C.MasterBit where
+module I2C.MasterBit
+  (masterBitCtrl
+  )
+where
 
 import CLaSH.Prelude
 import Control.Lens
@@ -56,31 +59,46 @@ data MasterBitS
 
 makeLenses ''MasterBitS
 
---startState :: MasterBitS
---startState = MasterBitS
---           { _dscl_oen   = False
---           , _isclOen   = True
---           , _slave_wait = False
---           , _dSCL       =
---           }
-topEntity = nextStateDecoder
+masterBitCtrl :: Unsigned 16
+              -> Signal I2Ccommand
+              -> Signal Bit
+              -> Signal I2CIPair
+              -> (Signal (Bool,Bool,Bool,Bit), Signal I2COPair)
+masterBitCtrl clkCnt cmd dIn i2ci = sWrap o
+  where
+    s      = register masterStartState s'
+    (o,s') = sWrap (masterBitCtrlT clkCnt <$> cmd <*> dIn <*> i2ci <*> s)
+
+
+masterStartState :: MasterBitS
+masterStartState
+  = MasterBitS
+  { _dsclOen      = False
+  , _slaveWait    = False
+  , _cnt          = 0
+  , _clkEn        = True
+  , _dout         = 0
+  , _busState     = busStartState
+  , _stateMachine = stateMachineStart
+  }
+
 
 masterBitCtrlT :: Unsigned 16
                -> I2Ccommand
                -> Bit
                -> I2CIPair
                -> MasterBitS
-               -> ((), MasterBitS)
+               -> ( ((Bool,Bool,Bool,Bit),I2COPair)
+                  , MasterBitS)
 masterBitCtrlT clkCnt cmd dIn i2ci = runState $ do
   (MasterBitS {..}) <- get
   -- Extract substate information
   let sSCL      = _scli (_sI2C _busState)
       dSCL      = _scli (_dI2C _busState)
       sSDA      = _sdai (_sI2C _busState)
-      isclOen   = _isclOen _stateMachine
-      isdaOen   = _isdaOen _stateMachine
-      sdaChk    = _sdaChk _stateMachine
-      cState    = _cState _stateMachine
+      al        = _ial _busState
+      busy      = _ibusy _busState
+      (StateMachine isclOen isdaOen sdaChk cmdAck cState) = _stateMachine
 
   -- whenever the slave is not ready it can delay the cycle by pulling SCL low
   -- delay scl_oen
@@ -114,7 +132,12 @@ masterBitCtrlT clkCnt cmd dIn i2ci = runState $ do
   when (sSCL == 1 && dSCL == 0) (dout .= sSDA)
 
   -- generate statemachine
-  -- zoom stateMachine (nextStateDecoder cmd _clkEn)
+  zoom stateMachine (nextStateDecoder cmd _clkEn dIn)
+
+  -- assign outputs
+  return ( (cmdAck,al,busy,_dout)
+         , I2COPair 0 isclOen 0 isdaOen
+         )
 
 busStartState
   = BusStatusCtrl
@@ -130,6 +153,7 @@ busStartState
   , _ial            = False
   }
 
+{-# NOINLINE busStatusCtrl #-}
 busStatusCtrl :: Unsigned 16
               -> I2Ccommand
               -> Bool
@@ -189,12 +213,23 @@ busStatusCtrl clkCnt cmd sdaChk isdaOen clkEn cState i2ci  = do
                 (f!!2 .&. f!!0) .|.
                 (f!!1 .&. f!!0)
 
+stateMachineStart
+  = StateMachine
+  { _isclOen = True
+  , _isdaOen = True
+  , _sdaChk  = False
+  , _cmdAck  = False
+  , _cState  = Idle
+  }
+
+-- topEntity a b c s = runState (nextStateDecoder a b c) s
+
+{-# NOINLINE nextStateDecoder #-}
 nextStateDecoder :: I2Ccommand
                  -> Bool
                  -> Bit
-                 -> StateMachine
-                 -> ((),StateMachine)
-nextStateDecoder cmd clkEn dIn = runState $ do
+                 -> State StateMachine ()
+nextStateDecoder cmd clkEn dIn = do
   (StateMachine {..}) <- get
 
   -- default no acknowledge

@@ -13,7 +13,7 @@ data I2CIPair
 makeLenses ''I2CIPair
 
 data I2COPair
-  = I2CIOPair
+  = I2COPair
   { _sclo   :: Bit
   , _scloEn :: Bool
   , _sdao   :: Bit
