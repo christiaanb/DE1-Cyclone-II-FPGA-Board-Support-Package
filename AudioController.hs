@@ -1,6 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module AudioController (audioCtrl) where
+module AudioController
+  (audioCtrl)
+where
 
 import CLaSH.Prelude
 import CLaSH.Prelude.Explicit
@@ -25,11 +27,14 @@ type AudioCtrlO = (Bit,Bit,(Signed 18, Signed 18), Bit)
 
 audioCtrl (ldata,rdata,wEn,clks) = outp
   where
-    syncdata = wordSynchronize systemClock bclkClock audioSyncInit (sUnwrap (ldata,rdata,wEn))
-    outp     = sync bclkClock audioCtrlT audioCtrlInit (syncdata,clks)
+    -- syncdata = wordSynchronize fftClock bclkClock audioSyncInit (unwrap fftClock (ldata,rdata,wEn))
+    ldataS   = wordSynchronize fftClock bclkClock 0 ldata
+    rdataS   = wordSynchronize fftClock bclkClock 0 rdata
+    wEnS     = wordSynchronize systemClock bclkClock False wEn
+    outp     = sync bclkClock audioCtrlT audioCtrlInit (unwrap bclkClock (ldataS,rdataS,wEnS),clks)
 
-audioSyncInit :: (Signed 18, Signed 18, Bool)
-audioSyncInit = (0,0,False)
+-- audioSyncInit :: (Signed 18, Signed 18, Bool)
+-- audioSyncInit = (0,0,False)
 
 audioCtrlInit :: AudioCtrlS
 audioCtrlInit = ACS 0 0 0 0 low low (repeat low) (repeat low) (repeat low) 0 0

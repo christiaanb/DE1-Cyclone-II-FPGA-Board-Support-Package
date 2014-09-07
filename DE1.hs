@@ -18,33 +18,38 @@ import CLaSH.Prelude
 import CLaSH.Prelude.Explicit
 
 import DE1Types
-import I2CController
+import I2C
+import I2C.Types
 import AudioConf
 import AudioController
+import FIR
 import Keyboard
 import Utils
 
-topEntity
-  :: (CSignal ('Clk "system" 1000) Bool,
-      CSignal KBClock (Bit, Bit),
-      CSignal ('Clk "system" 1000) (BitVector 1),
-      CSignal ('Clk "bclk" 3000) (Bit, Bit, Bit))
-     -> (CSignal ('Clk "system" 1000) Bool,
-         CSignal ('Clk "system" 1000) Bool,
-         CSignal ('Clk "bclk" 3000) (BitVector 1),
-         CSignal ('Clk "system" 1000) (Bit, Bool, Bit, Bool),
-         (CSignal ('Clk "system" 1000) (BitVector 7),
-          CSignal ('Clk "system" 1000) (BitVector 7),
-          CSignal ('Clk "system" 1000) (BitVector 7),
-          CSignal ('Clk "system" 1000) (BitVector 7)))
-topEntity (rst,kbdata,sdaI,audioClks) = (done,fault,dacDat,i2cO,hexdisps)
+-- topEntity
+--   :: (CSignal ('Clk "system" 1000) Bool,
+--       CSignal KBClock (Bit, Bit),
+--       CSignal ('Clk "system" 1000) (BitVector 1),
+--       CSignal ('Clk "bclk" 3000) (Bit, Bit, Bit))
+--      -> (CSignal ('Clk "system" 1000) Bool,
+--          CSignal ('Clk "system" 1000) Bool,
+--          CSignal ('Clk "bclk" 3000) (BitVector 1),
+--          CSignal ('Clk "system" 1000) I2COPair,
+--          (CSignal ('Clk "system" 1000) (BitVector 7),
+--           CSignal ('Clk "system" 1000) (BitVector 7),
+--           CSignal ('Clk "system" 1000) (BitVector 7),
+--           CSignal ('Clk "system" 1000) (BitVector 7)))
+topEntity (rst,kbdata,sdaI,audioClks,filterEnable,highOrLow) = (done,fault,dacDat,i2cO,hexdisps)
   where
-    (dout,hostAck,busy,al,ackOut,i2cO)           = i2cController (rst,signal True,99,start,stop,signal False,write,signal low,din,sUnwrap (scl,sdaI))
+    (dout,hostAck,busy,al,ackOut,i2cO)           = i2c 99 start stop (signal False) write (signal False) din (sUnwrap (scl,sdaI))
     (_,sclOen,_,_)                               = sWrap i2cO
     scl                                          = enable <$> sclOen
     (start,stop,write,din,done,fault)            = audioConfig (rst,not <$> rst,hostAck,ackOut,al)
-    (pulseAdc48KHz,pulseDac48KHz,adcData,dacDat) = audioCtrl (lAdcData,rAdcData,done,audioClks)
-    (lAdcData,rAdcData)                          = sWrap (wordSynchronize bclkClock systemClock (0,0) adcData)
+    (pulseAdc48KHz,pulseDac48KHz,adcData,dacDat) = audioCtrl (firDataL,firDataR,done,audioClks)
+    (lAdcData,rAdcData)                          = wrap bclkClock adcData
+    (firDataL,_)                                 = fir17sync lAdcData pulseAdc48KHz filterEnable highOrLow
+    (firDataR,_)                                 = fir17sync rAdcData pulseAdc48KHz filterEnable highOrLow
+    -- (lAdcData,rAdcData)                          = sWrap (wordSynchronize bclkClock systemClock (0,0) adcData)
     (hexdisps,key)                               = keyboard kbdata
 
 

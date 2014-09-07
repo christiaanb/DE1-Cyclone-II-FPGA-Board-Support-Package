@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
-module AudioConf (
-    audioConfig
-  ) where
+module AudioConf
+  (audioConfig)
+where
 
 import CLaSH.Prelude
 import DE1Types
@@ -22,7 +22,7 @@ data AudioConfS = AudioConfS { audioConfStateM :: AudioStateMachine
                              , fault           :: Bool
                              }
 
-type AudioConfI = (Bool,Bool,Bool,Bit,Bool)
+type AudioConfI = (Bool,Bool,Bool,Bool,Bool)
 type AudioConfO = (Bool,Bool,Bool,BitVector 8,Bool,Bool)
 
 audioConfig = audioConfigT <^> audioConfInit
@@ -70,7 +70,7 @@ audioConfigT s@(AudioConfS{..}) inp = (s', outp)
               s
 
           -- Read acknowledge, should be low; if so: write register address, set write bit, and deassert fault
-          AUDIOCONFreg -> if (rxAck == low) then -- trace "Add Acknowledged" $
+          AUDIOCONFreg -> if (rxAck == False) then -- trace "Add Acknowledged" $
               s {audioConfStateM = AUDIOCONFregAck, write = True, din = pack (fst lutData), fault = False}
             else
               -- Otherwise a fault occured: start over, and assert fault bit
@@ -84,7 +84,7 @@ audioConfigT s@(AudioConfS{..}) inp = (s', outp)
               s
 
           -- Read acknowledge, should be low; if so: write data to register, set write and stop bit, and deassert fault
-          AUDIOCONFdata -> if (rxAck == low) then -- trace "Reg Acknowledged" $
+          AUDIOCONFdata -> if (rxAck == False) then -- trace "Reg Acknowledged" $
               s {audioConfStateM = AUDIOCONFdataAck, write = True, stop = True, din = pack (snd lutData), fault = False}
             else
               -- Otherwise a fault occured: start over, and assert fault bit
@@ -97,7 +97,7 @@ audioConfigT s@(AudioConfS{..}) inp = (s', outp)
               s
 
           -- Read acknowledge, shoulf be low; if so: go to next cycle by updating lutIndex, and deassert fault
-          AUDIOCONFstop -> if (rxAck == low) then -- trace "Val Acknowledged" $
+          AUDIOCONFstop -> if (rxAck == False) then -- trace "Val Acknowledged" $
               s {audioConfStateM = AUDIOCONFena, lutIndex = lutIndex + 1, fault = False}
             else
               -- Otherwise a fault occured: start over, and assert fault

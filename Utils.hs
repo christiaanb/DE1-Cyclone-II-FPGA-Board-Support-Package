@@ -32,8 +32,8 @@ delayN clk initS inp = last s
   where
     s = cregisterW clk initS (inp +>> s)
 
-pulseHigh :: Signal Bit -> Signal Bool
-pulseHigh = pulseHigh' <^> low
+pulseHigh :: SClock clk -> CSignal clk Bit -> CSignal clk Bool
+pulseHigh clk = sync clk pulseHigh' low
   where
     pulseHigh' inpP inp = (inp,inpP == low && inp == high)
 
