@@ -41,6 +41,10 @@ type Stepsize    = Signed 16
 type I2CIn       = (Bit,Bit)
 type I2COut      = (Bit,Bool,Bit,Bool)
 
-
+type Word = Signed 18
+type DWord = Signed 36
+type CWord = (Word, Word)
+type FPConst = (Word, Word)
+type CFPConst = (FPConst, FPConst)
 
 

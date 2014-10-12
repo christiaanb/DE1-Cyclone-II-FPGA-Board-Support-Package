@@ -6,12 +6,12 @@ import Control.Monad.State
 
 import DE1Types
 
-withStateM :: (Wrap i, Wrap o)
+withStateM :: (Bundle i, Bundle o)
            => s
            -> (i -> State s o)
-           -> SWrapped i
-           -> SWrapped o
-withStateM initS f = f' <^> initS
+           -> Unbundled' i
+           -> Unbundled' o
+withStateM initS f = mealyB f' initS
   where
     f' = \s i -> let (o,s') = runState (f i) s
                  in  (s',o)
@@ -30,10 +30,10 @@ delayN :: KnownNat (n+1)
        -> CSignal clk a
 delayN clk initS inp = last s
   where
-    s = cregisterW clk initS (inp +>> s)
+    s = cregisterB clk initS (inp +>> s)
 
 pulseHigh :: SClock clk -> CSignal clk Bit -> CSignal clk Bool
-pulseHigh clk = sync clk pulseHigh' low
+pulseHigh clk = cmealy clk pulseHigh' low
   where
     pulseHigh' inpP inp = (inp,inpP == low && inp == high)
 
