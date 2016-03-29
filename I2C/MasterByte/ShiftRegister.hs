@@ -10,8 +10,6 @@ import CLaSH.Prelude
 import Control.Lens hiding (Index)
 import Control.Monad.State
 
-import Utils
-
 data ShiftRegister
   = ShiftRegister
   { _sr   :: BitVector 8
@@ -48,3 +46,6 @@ shiftRegister ld shift dIn coreRxd = do
     dCnt -= 1
 
   return (_dCnt == 0)
+
+(<<#) :: KnownNat n => BitVector (1 + n) -> Bit -> BitVector (n + 1)
+bv <<# b = snd (split bv) ++# b

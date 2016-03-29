@@ -12,7 +12,6 @@ import Control.Monad.State
 import I2C.MasterBit.BusCtrl
 import I2C.MasterBit.Statemachine
 import I2C.Types
-import Utils
 
 data MasterBitS
   = MasterBitS
@@ -33,10 +32,10 @@ masterBitCtrl :: Unsigned 16
               -> Signal Bit
               -> Signal I2CIPair
               -> (Signal (Bool,Bool,Bool,Bit), Signal I2COPair)
-masterBitCtrl clkCnt cmd dIn i2ci = sWrap o
+masterBitCtrl clkCnt cmd dIn i2ci = unbundle o
   where
     s      = register masterStartState s'
-    (o,s') = sWrap (masterBitCtrlT clkCnt <$> cmd <*> dIn <*> i2ci <*> s)
+    (o,s') = unbundle (masterBitCtrlT clkCnt <$> cmd <*> dIn <*> i2ci <*> s)
 
 
 {-# INLINE masterStartState #-}

@@ -2,7 +2,7 @@ module I2C.Types where
 
 import CLaSH.Prelude
 import CLaSH.Signal.Explicit
-import CLaSH.Signal.Wrap
+import CLaSH.Signal.Bundle
 import Control.Lens
 
 data I2Ccommand = I2C_NOP | I2C_Start | I2C_Stop | I2C_Read | I2C_Write
@@ -14,10 +14,10 @@ data I2CIPair
 
 makeLenses ''I2CIPair
 
-instance Wrap I2CIPair where
-  type Wrapped clk I2CIPair = (CSignal clk Bit, CSignal clk Bit)
-  wrap _ i2ci    = (_scli <$> i2ci, _sdai <$> i2ci)
-  unwrap _ (a,b) = I2CIPair <$> a <*> b
+instance Bundle I2CIPair where
+  type Unbundled' clk I2CIPair = (Signal' clk Bit, Signal' clk Bit)
+  unbundle' _ i2ci  = (_scli <$> i2ci, _sdai <$> i2ci)
+  bundle'   _ (a,b) = I2CIPair <$> a <*> b
 
 data I2COPair
   = I2COPair
@@ -29,7 +29,7 @@ data I2COPair
 
 makeLenses ''I2COPair
 
-instance Wrap I2COPair where
-  type Wrapped clk I2COPair = (CSignal clk Bit, CSignal clk Bool, CSignal clk Bit, CSignal clk Bool)
-  wrap _ i2co        = (_sclo <$> i2co, _scloEn <$> i2co, _sdao <$> i2co, _sdaoEn <$> i2co)
-  unwrap _ (a,b,c,d) = I2COPair <$> a <*> b <*> c <*> d
+instance Bundle I2COPair where
+  type Unbundled' clk I2COPair = (Signal' clk Bit, Signal' clk Bool, Signal' clk Bit, Signal' clk Bool)
+  unbundle' _ i2co      = (_sclo <$> i2co, _scloEn <$> i2co, _sdao <$> i2co, _sdaoEn <$> i2co)
+  bundle'   _ (a,b,c,d) = I2COPair <$> a <*> b <*> c <*> d

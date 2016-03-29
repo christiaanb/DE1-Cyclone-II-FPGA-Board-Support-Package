@@ -1,10 +1,11 @@
 module Mixer where
 
 import CLaSH.Prelude
+import CLaSH.Prelude.Explicit
 
-mixer :: ( (Signal (Signed 18), Signal (Signed 16))
-         , (Signal (Signed 18), Signal (Signed 16)))
-      -> (Signal (Signed 18), Signal (Signed 18))
+mixer :: ( (Signal' clk (Signed 18), Signal' clk (Signed 16))
+         , (Signal' clk (Signed 18), Signal' clk (Signed 16)))
+      -> (Signal' clk (Signed 18), Signal' clk (Signed 18))
 mixer ((lChannel1,lChannel2),(rChannel1,rChannel2)) = (lChannelOut,rChannelOut)
   where
     lChannel2'  = shiftL <$> (resize <$> lChannel2) <*> 1

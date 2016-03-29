@@ -22,8 +22,11 @@ import I2C
 import I2C.Types
 import AudioConf
 import AudioController
+import FFT
 import FIR
 import Keyboard
+import ToneGeneration
+import Mixer
 import Utils
 
 -- topEntity
@@ -41,16 +44,20 @@ import Utils
 --           CSignal ('Clk "system" 1000) (BitVector 7)))
 topEntity (rst,kbdata,sdaI,audioClks,filterEnable,highOrLow) = (done,fault,dacDat,i2cO,hexdisps)
   where
-    (dout,hostAck,busy,al,ackOut,i2cO)           = i2c 99 start stop (signal False) write (signal False) din (sUnwrap (scl,sdaI))
-    (_,sclOen,_,_)                               = sWrap i2cO
+    (dout,hostAck,busy,al,ackOut,i2cO)           = i2c 99 start stop (signal False) write (signal False) din (bundle (scl,sdaI))
+    (hexdisps,key)                               = keyboard kbdata
+    sine                                         = toneGeneration pulseDac48KHz key
+    (_,sclOen,_,_)                               = unbundle i2cO
     scl                                          = enable <$> sclOen
     (start,stop,write,din,done,fault)            = audioConfig (rst,not <$> rst,hostAck,ackOut,al)
     (pulseAdc48KHz,pulseDac48KHz,adcData,dacDat) = audioCtrl (firDataL,firDataR,done,audioClks)
-    (lAdcData,rAdcData)                          = wrap bclkClock adcData
-    (firDataL,_)                                 = fir17sync lAdcData pulseAdc48KHz filterEnable highOrLow
-    (firDataR,_)                                 = fir17sync rAdcData pulseAdc48KHz filterEnable highOrLow
-    -- (lAdcData,rAdcData)                          = sWrap (wordSynchronize bclkClock systemClock (0,0) adcData)
-    (hexdisps,key)                               = keyboard kbdata
+    (lAdcData,rAdcData)                          = unbundle' bclkClock adcData
+    (mixChannelL,mixChannelR)                    = mixer ((lAdcData,unsafeSynchronizer systemClock bclkClock sine)
+                                                         ,(rAdcData,unsafeSynchronizer systemClock bclkClock sine))
+    (firDataL,pulseAdc48KHzDL)                   = fir17sync mixChannelL pulseAdc48KHz filterEnable highOrLow
+    (firDataR,_)                                 = fir17sync mixChannelR pulseAdc48KHz filterEnable highOrLow
+    fftData                                      = fftfull (bundle' fftClock (firDataL,pulseAdc48KHzDL))
+
 
 
 -- {-# ANN de1 TopEntity #-}

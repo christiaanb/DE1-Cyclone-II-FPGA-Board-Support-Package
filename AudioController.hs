@@ -31,7 +31,7 @@ audioCtrl (ldata,rdata,wEn,clks) = outp
     ldataS   = wordSynchronize fftClock bclkClock 0 ldata
     rdataS   = wordSynchronize fftClock bclkClock 0 rdata
     wEnS     = wordSynchronize systemClock bclkClock False wEn
-    outp     = sync bclkClock audioCtrlT audioCtrlInit (unwrap bclkClock (ldataS,rdataS,wEnS),clks)
+    outp     = mealyB' bclkClock audioCtrlT audioCtrlInit (bundle' bclkClock (ldataS,rdataS,wEnS),clks)
 
 -- audioSyncInit :: (Signed 18, Signed 18, Bool)
 -- audioSyncInit = (0,0,False)

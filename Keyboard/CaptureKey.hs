@@ -9,12 +9,12 @@ type CaptureKeyS = (Vec 10 Bit, Index 12, Bit)
 type CaptureKeyI = (Bit,Bit)
 type CaptureKeyO = (SegDisp,SegDisp,Scancode,Bool)
 
-captureKey :: CSignal KBClock (Bit,Bit)
-           -> Wrapped SystemClock CaptureKeyO
+captureKey :: Signal' KBClock (Bit,Bit)
+           -> Unbundled' SystemClock CaptureKeyO
 captureKey kbInp = captureOut
   where
     kbInpS     = wordSynchronize kbClock systemClock kbdataInit kbInp
-    captureOut = (captureKeyT <^> captureKeyInit) (sWrap kbInpS)
+    captureOut = (captureKeyT <^> captureKeyInit) (unbundle kbInpS)
 
 kbdataInit :: (Bit,Bit)
 kbdataInit = (low,high)

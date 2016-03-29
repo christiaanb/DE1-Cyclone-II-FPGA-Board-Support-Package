@@ -5,25 +5,22 @@ import CLaSH.Prelude.Explicit
 import DE1Types
 import Utils
 
-type Word  = Signed 18
-type DWord = Signed 36
-
-fpmult :: Word -> Word -> Word
+fpmult :: FWord -> FWord -> FWord
 fpmult i h = o
   where vi = (resize i) :: DWord
         vh = (resize h) :: DWord
-        o = (resize (shiftR (vi * vh) 17)) :: Word
+        o = (resize (shiftR (vi * vh) 17)) :: FWord
 
 
 -- cutoff freq = 938 Hz
-lowpass :: Vec 17 Word
+lowpass :: Vec 17 FWord
 lowpass = $(v [ 1046, 1565, 3024, 5274, 8007, 10808, 13227, 14863, 15442, 14863, 13227, 10808, 8007,  5274,  3024,  1565,  (1046 :: Signed 18) ] )
 
-highpass :: Vec 17 Word
+highpass :: Vec 17 FWord
 highpass = $(v [ 130025, -1565, -3024, -5274, -8007, -10808, -13227, -14863, -15442, -14863, -13227, -10808, -8007,  -5274,  -3024,  -1565,  (-1046 :: Signed 18) ] )
 
 
-fir17T :: (Vec 17 Word) -> (Word, Bool, Vec 17 Word) -> ((Vec 17 Word), Word)
+fir17T :: (Vec 17 FWord) -> (FWord, Bool, Vec 17 FWord) -> ((Vec 17 FWord), FWord)
 fir17T (us) (x,enable,hs) = (usn, y)
   where
     ms = map (fpmult x) hs
@@ -32,21 +29,21 @@ fir17T (us) (x,enable,hs) = (usn, y)
     y = head us
 
 -- input range is 2^17-1 .. -2^17
-fir17filter = sync fftClock fir17T (repeat 0)
+fir17filter = mealyB' fftClock fir17T (repeat 0)
 
-fir17 :: CSignal FFTClock Word -> CSignal FFTClock Bit
-      -> CSignal FFTClock Bool -> (CSignal FFTClock Word, CSignal FFTClock Bit)
+fir17 :: Signal' FFTClock FWord -> Signal' FFTClock Bit
+      -> Signal' FFTClock Bool -> (Signal' FFTClock FWord, Signal' FFTClock Bit)
 fir17 audioData syncPulse highorlow = (filteredData,syncPulseD)
   where
     firEnable    = pulseHigh fftClock syncPulse
     filteredData = fir17filter (audioData, firEnable, mux highorlow (pure highpass) (pure lowpass))
     syncPulseD   = delayN fftClock (singleton 0) syncPulse
 
-fir17sync :: CSignal BClkClock Word
-          -> CSignal BClkClock Bit
-          -> CSignal FFTClock Bool
-          -> CSignal FFTClock Bool
-          -> (CSignal FFTClock Word, CSignal FFTClock Bit)
+fir17sync :: Signal' BClkClock FWord
+          -> Signal' BClkClock Bit
+          -> Signal' FFTClock Bool
+          -> Signal' FFTClock Bool
+          -> (Signal' FFTClock FWord, Signal' FFTClock Bit)
 fir17sync lAdcData pulseAdc48KHz enable highorlow = (mux enable filtered lAdcDataS
                                                     ,mux enable fPulse pulseAdc48KHzS
                                                     )

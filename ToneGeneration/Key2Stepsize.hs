@@ -1,9 +1,9 @@
 module ToneGeneration.Key2Stepsize (key2stepsize) where
 
-import CLasH.HardwareTypes
+import CLaSH.Prelude
 import DE1Types
 
-key2stepsize :: Key -> Stepsize
+key2stepsize :: Scancode -> Stepsize
 key2stepsize k
   | k == keyTab = toneA
   | k == keyQ   = toneB
@@ -50,7 +50,7 @@ key2stepsize k
     key8     = 0x3E
     key0     = 0x45
     keyUnd   = 0x4E -- underscore
-    keyBsl   = 0x5D -- backslash 
+    keyBsl   = 0x5D -- backslash
     toneA    = 601
     toneAis  = 636
     toneB    = 674

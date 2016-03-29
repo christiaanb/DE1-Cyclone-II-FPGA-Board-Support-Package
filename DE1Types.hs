@@ -38,13 +38,14 @@ kbClock = sclock
 type SegDisp     = BitVector 7
 type Scancode    = BitVector 8
 type Stepsize    = Signed 16
+type Key         = Unsigned 8
 type I2CIn       = (Bit,Bit)
 type I2COut      = (Bit,Bool,Bit,Bool)
 
-type Word = Signed 18
+type FWord = Signed 18
 type DWord = Signed 36
-type CWord = (Word, Word)
-type FPConst = (Word, Word)
+type CWord = (FWord, FWord)
+type FPConst = (FWord, FWord)
 type CFPConst = (FPConst, FPConst)
 
 

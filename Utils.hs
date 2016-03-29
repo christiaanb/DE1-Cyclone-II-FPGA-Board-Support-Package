@@ -9,8 +9,8 @@ import DE1Types
 withStateM :: (Bundle i, Bundle o)
            => s
            -> (i -> State s o)
-           -> Unbundled' i
-           -> Unbundled' o
+           -> Unbundled i
+           -> Unbundled o
 withStateM initS f = mealyB f' initS
   where
     f' = \s i -> let (o,s') = runState (f i) s
@@ -18,22 +18,22 @@ withStateM initS f = mealyB f' initS
 
 wordSynchronize :: SClock clkIn -> SClock clkOut
                 -> a
-                -> CSignal clkIn  a
-                -> CSignal clkOut a
+                -> Signal' clkIn  a
+                -> Signal' clkOut a
 wordSynchronize clk1 clk2 initS inp =
-  delayN clk2 (replicate d2 initS) (veryUnsafeSynchronizer clk1 clk2 inp)
+  delayN clk2 (replicate d2 initS) (unsafeSynchronizer clk1 clk2 inp)
 
 delayN :: KnownNat (n+1)
        => SClock clk
        -> Vec (n + 1) a
-       -> CSignal clk a
-       -> CSignal clk a
+       -> Signal' clk a
+       -> Signal' clk a
 delayN clk initS inp = last s
   where
-    s = cregisterB clk initS (inp +>> s)
+    s = registerB' clk initS (inp +>> s)
 
-pulseHigh :: SClock clk -> CSignal clk Bit -> CSignal clk Bool
-pulseHigh clk = cmealy clk pulseHigh' low
+pulseHigh :: SClock clk -> Signal' clk Bit -> Signal' clk Bool
+pulseHigh clk = mealy' clk pulseHigh' low
   where
     pulseHigh' inpP inp = (inp,inpP == low && inp == high)
 

@@ -17,8 +17,8 @@ data ConstantKeyS = CK { stateM    :: KeyState
 type ConstantKeyI = (Scancode, Bool)
 type ConstantKeyO = (SegDisp, SegDisp, Scancode)
 
-constantKey :: SWrapped ConstantKeyI
-            -> SWrapped ConstantKeyO
+constantKey :: Unbundled ConstantKeyI
+            -> Unbundled ConstantKeyO
 constantKey = constantKeyT <^> constantKeyInit
 
 constantKeyInit :: ConstantKeyS
