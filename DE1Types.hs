@@ -39,8 +39,6 @@ type SegDisp     = BitVector 7
 type Scancode    = BitVector 8
 type Stepsize    = Signed 16
 type Key         = Unsigned 8
-type I2CIn       = (Bit,Bit)
-type I2COut      = (Bit,Bool,Bit,Bool)
 
 type FWord = Signed 18
 type DWord = Signed 36

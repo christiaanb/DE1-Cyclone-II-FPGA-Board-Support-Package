@@ -40,7 +40,7 @@ captureKeyT (buffer,iteration,kbclockP) (kbdata,kbclock) =
       else
         iteration
 
-    scancode = pack (take d8 buffer)
+    scancode = pack (reverse $ take d8 buffer)
     byteRead = iteration == 11
 
     dig3     = hex2display (fst (split scancode))

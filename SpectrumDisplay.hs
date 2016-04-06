@@ -1,7 +1,8 @@
 {-# LANGUAGE Arrows, RecordWildCards #-}
 module SpectrumDisplay (spectrumDisplay) where
 
-import CLasH.HardwareTypes
+import CLaSH.Prelude
+import CLaSH.Prelude.Explicit
 import DE1Types
 import Utils
 import SRAMcontroller
@@ -10,59 +11,63 @@ import VGAController
 data SpecStateMachine = Fill | Purge | Sync
   deriving Eq
 
-data SpectrumS = SpectrumS { pixelOut      :: Vector D8 Bit
-                           , pixelAddrR    :: Unsigned D19
-                           , pixelAddrW    :: Unsigned D19
+data SpectrumS = SpectrumS { pixelOut      :: BitVector 8
+                           , pixelAddrR    :: Unsigned 19
+                           , pixelAddrW    :: Unsigned 19
                            , pixelWrite    :: Bool
-                           , pixelIn       :: Vector D8 Bit
+                           , pixelIn       :: BitVector 8
                            , fftNewP       :: Bool
-                           , fftCounter    :: Unsigned D12
-                           , fftColCnt     :: Unsigned D12
+                           , fftCounter    :: Unsigned 12
+                           , fftColCnt     :: Unsigned 12
                            , stateM        :: SpecStateMachine
-                           , fftDataR      :: Vector D128 (Signed D18)
-                           , fftAddrR      :: Vector D128 (Unsigned D7)
-                           , dataCntr      :: Unsigned D12
+                           , fftDataR      :: Vec 128 (Signed 18)
+                           , fftAddrR      :: Vec 128 (Unsigned 7)
+                           , dataCntr      :: Unsigned 12
                            , hsyncP        :: Bit
-                           , lineCounter   :: Unsigned D12
+                           , lineCounter   :: Unsigned 12
                            }
 
-type SpectrumI = (Unsigned D12, Unsigned D12, Unsigned D12, Unsigned D12, Bit, Bit, Bit, Unsigned D12, Unsigned D12, Signed D18, Unsigned D7, Bool, Vector D8 Bit)
-type SpectrumO = (Vector D4 Bit, Vector D4 Bit, Vector D4 Bit, (Vector D8 Bit, Vector D19 Bit, Bool))
+type SpectrumI = (Unsigned 12, Unsigned 12, Unsigned 12, Unsigned 12, Bit, Bit
+                 ,Bit, Unsigned 12, Unsigned 12, Signed 18, Unsigned 7, Bool
+                 ,BitVector 8)
+type SpectrumO = (BitVector 4, BitVector 4, BitVector 4
+                 ,(BitVector 8, BitVector 19, Bool))
 
-spectrumDisplay = proc (sramIn,fftData) -> do
-  rec ((hsync,vsync),inDisplayArea,counterX,counterY) <- vgaController  -< (800,56,120,64,600,37,6,23)
-      (fftVal,fftAddr,fftNew)  <- comp synchronize fftDataInit sysclock -< fftData
-      (vgaR,vgaG,vgaB,sramCtrl)                       <- spectrumCtrl   -< (800,600,100,127,hsync,vsync,inDisplayArea,counterX,counterY,fftVal,fftAddr,fftNew,sramData)
-      (sramData,sramOut)                              <- sramController -< (sramIn,sramCtrl)
-  returnA -< (sramOut,(hsync,vsync,vgaR,vgaG,vgaB))
+spectrumDisplay sramIn fftData = (sramOut,(hsync,vsync,vgaR,vgaG,vgaB))
+  where
+    (syncs,inDisplayArea,counterX,counterY) = vgaController (800,56,120,64,600,37,6,23)
+    (hsync,vsync) = unbundle syncs
+    (fftVal,fftAddr,fftNew) = unbundle $ wordSynchronize fftClock systemClock (0,0,False) fftData
+    (vgaR,vgaG,vgaB,sramCtrl) = spectrumCtrl (800,600,100,127,hsync,vsync,inDisplayArea,counterX,counterY,fftVal,fftAddr,fftNew,sramData)
+    (sramData,sramOut) = unbundle $ sramController (bundle (sramIn,sramCtrl))
 
-fftDataInit = vcopy (0,0,False)
+fftDataInit = (0,0,False)
 
-spectrumCtrl = comp spectrumCtrlT spectrumInit sysclock
+spectrumCtrl = mealyB spectrumCtrlT spectrumInit
 
 spectrumInit :: SpectrumS
-spectrumInit = SpectrumS { hsyncP  = High
+spectrumInit = SpectrumS { hsyncP  = 0b1
                          , fftNewP = False
                          , fftCounter = 0
                          , pixelWrite = False
                          , pixelAddrR = 0
                          , pixelAddrW = 0
-                         , pixelIn = vcopy Low
-                         , pixelOut = vcopy Low
+                         , pixelIn = 0
+                         , pixelOut = 0
                          , fftColCnt = 0
                          , stateM = Sync
-                         , fftDataR = vcopy 0
-                         , fftAddrR = vcopy 0
+                         , fftDataR = repeat 0
+                         , fftAddrR = repeat 0
                          , dataCntr = 0
                          , lineCounter = 0
                          }
 
-spectrumCtrlT :: State SpectrumS -> SpectrumI -> (State SpectrumS, SpectrumO)
-spectrumCtrlT (State s@(SpectrumS{..})) inp = (State s', outp)
+spectrumCtrlT :: SpectrumS -> SpectrumI -> (SpectrumS, SpectrumO)
+spectrumCtrlT s@(SpectrumS{..}) inp = (s', outp)
   where
     (hsize,vsize,yoffset,fftSamples,hsync,vsync,inDisplayArea,counterX,counterY,fftData,fftAddr,fftNew,sramData) = inp
     outp = (vgaR,vgaG,vgaB,(pixelOut,pixelAddr,pixelWrite))
-    
+
     -- Update registers
     s' = stateMachine { hsyncP     = hsyncP'
                       , fftNewP    = fftNewP'
@@ -72,29 +77,29 @@ spectrumCtrlT (State s@(SpectrumS{..})) inp = (State s', outp)
                       , pixelIn    = pixelIn'
                       , lineCounter = fftSamples - (shiftR counterY 2)
                       }
-    
+
     -- Detect new hsync
     hsyncP'      = hsync
-    hsyncFalling = hsyncP == High && hsync == Low
-    
+    hsyncFalling = hsyncP == 0b1 && hsync == 0b0
+
     -- Detect new fft sample
     fftNewP'     = fftNew
     fftNewRising = (not fftNewP) && fftNew
-    
-    -- Up fft sample counter when new sample arrives until complete fft is received, then reset   
+
+    -- Up fft sample counter when new sample arrives until complete fft is received, then reset
     fftComplete = fftCounter == fftSamples
-    
+
     fftCounter' = if fftNewRising then
         if fftComplete then 0 else fftCounter + 1
       else
         fftCounter
-    
+
     -- FFT Buffer is full if a complete FFT column has been stored
     bufferFull  = dataCntr == fftSamples
-    
+
     -- FFT Buffer is empty when a complete FFT column is purged
     bufferEmpty = dataCntr == 0
-        
+
     stateMachine = case stateM of
       -- Fill state: fill up FFT column
       Fill -> if bufferFull then           -- If buffer if full, go to the Purge state
@@ -106,7 +111,7 @@ spectrumCtrlT (State s@(SpectrumS{..})) inp = (State s', outp)
                   }
               else
                 s
-      
+
       -- Purge state: purge the content of the FFT column
       Purge -> if bufferEmpty then         -- If buffer is full go to Sync state
                 s { stateM = Sync
@@ -116,74 +121,73 @@ spectrumCtrlT (State s@(SpectrumS{..})) inp = (State s', outp)
               else if hsyncFalling then -- Otherwise write top of the FFT column to the screen
                 s { fftDataR   = 0 +>> fftDataR
                   , fftAddrR   = 0 +>> fftAddrR
-                  , pixelOut   = encodePixel (vlast fftDataR)
-                  , pixelAddrW = ((resizeUnsigned hsize) * (resizeUnsigned (vlast fftAddrR))) + (resizeUnsigned fftColCnt)
+                  , pixelOut   = encodePixel (last fftDataR)
+                  , pixelAddrW = ((resize hsize) * (resize (last fftAddrR))) + (resize fftColCnt)
                   , dataCntr   = dataCntr - 1
                   }
               else
                 s
-      
-      -- Sync state: wait until current FFT is done before filling up FFT buffer          
+
+      -- Sync state: wait until current FFT is done before filling up FFT buffer
       Sync -> if fftComplete then
                 s { stateM = Fill }
               else
                 s
-        
+
     -- Pixel read address is X + Y counter (+1 delay)
-    pixelAddrR' :: Unsigned D19
-    pixelAddrR' = (resizeUnsigned counterX) + ((resizeUnsigned lineCounter) * (resizeUnsigned hsize))
-    
+    pixelAddrR' :: Unsigned 19
+    pixelAddrR' = (resize counterX) + ((resize lineCounter) * (resize hsize))
+
     -- Only write pixels on horizontal blank period and when we are purging an fft column buffer
-    pixelWrite' = (hsyncP == Low) && (stateM == Purge)
-    
+    pixelWrite' = (hsyncP == 0b0) && (stateM == Purge)
+
     -- Determine pixel addr
-    pixelAddr = u2bv (if pixelWrite then pixelAddrW else pixelAddrR)
-    
+    pixelAddr = pack (if pixelWrite then pixelAddrW else pixelAddrR)
+
     -- Read pixel from SRAM
-    pixelIn'                          = sramData                       
+    pixelIn'                          = sramData
     (pixelRed, pixelGreen, pixelBlue) = decodePixel pixelIn
-    
+
     -- spectrum is diplayed over entire horizal span
-    showSpectrum = if counterX > 2 && counterY > 259 && counterY < 512  then High else Low 
-    
-    vgaR = vmap (hwand (inDisplayArea `hwand` showSpectrum)) (vreverse pixelRed)
-    vgaG = vmap (hwand (inDisplayArea `hwand` showSpectrum)) (vreverse pixelGreen)
-    vgaB = vmap (hwand (inDisplayArea `hwand` showSpectrum)) (vreverse pixelBlue)
-    
+    showSpectrum = counterX > 2 && counterY > 259 && counterY < 512
 
-encodePixel :: Signed D18 -> Vector D8 Bit
-encodePixel val = (u2bv pixelval)
-  where
-    pixelval | val < 2     && val > (-2)     = 0
-             | val < 5     && val > (-5)     = 1 
-             | val < 11    && val > (-11)    = 2
-             | val < 24    && val > (-24)    = 3
-             | val < 51    && val > (-51)    = 4
-             | val < 112   && val > (-112)   = 5
-             | val < 245   && val > (-245)   = 6
-             | val < 537   && val > (-537)   = 7
-             | val < 1177  && val > (-1177)  = 8
-             | val < 2581  && val > (-2581)  = 9
-             | val < 5661  && val > (-5661)  = 10
-             | val < 12417 && val > (-12417) = 11
-             | otherwise                     = 12
+    (vgaR,vgaG,vgaB)
+      | unpack inDisplayArea && showSpectrum
+      = (pixelRed,pixelGreen,pixelBlue)
+      | otherwise
+      = (0,0,0)
 
-decodePixel :: Vector D8 Bit -> (Vector D4 Bit, Vector D4 Bit, Vector D4 Bit)
+encodePixel :: Signed 18 -> BitVector 8
+encodePixel val
+  | val < 2     && val > (-2)     = 0
+  | val < 5     && val > (-5)     = 1
+  | val < 11    && val > (-11)    = 2
+  | val < 24    && val > (-24)    = 3
+  | val < 51    && val > (-51)    = 4
+  | val < 112   && val > (-112)   = 5
+  | val < 245   && val > (-245)   = 6
+  | val < 537   && val > (-537)   = 7
+  | val < 1177  && val > (-1177)  = 8
+  | val < 2581  && val > (-2581)  = 9
+  | val < 5661  && val > (-5661)  = 10
+  | val < 12417 && val > (-12417) = 11
+  | otherwise                     = 12
+
+decodePixel :: BitVector 8 -> (BitVector 4, BitVector 4, BitVector 4)
 decodePixel val = (r,g,b)
   where
-    val' = bv2u val
-    (b,g,r) = case val' of
-      0  -> (u2bv 0 , u2bv 0 , u2bv 0 )
-      1  -> (u2bv 0 , u2bv 0 , u2bv 1 )
-      2  -> (u2bv 0 , u2bv 0 , u2bv 3 )
-      3  -> (u2bv 0 , u2bv 0 , u2bv 7 )
-      4  -> (u2bv 0 , u2bv 0 , u2bv 15)
-      5  -> (u2bv 0 , u2bv 1 , u2bv 15)
-      6  -> (u2bv 0 , u2bv 3 , u2bv 15)
-      7  -> (u2bv 0 , u2bv 7 , u2bv 15)
-      8  -> (u2bv 0 , u2bv 15, u2bv 15)
-      9  -> (u2bv 1 , u2bv 15, u2bv 15)
-      10 -> (u2bv 3 , u2bv 15, u2bv 15)
-      11 -> (u2bv 7 , u2bv 15, u2bv 15)
-      _  -> (u2bv 15, u2bv 15, u2bv 15)
-  
+    (b,g,r) = case val of
+      0  -> (0 , 0 , 0 )
+      1  -> (0 , 0 , 1 )
+      2  -> (0 , 0 , 3 )
+      3  -> (0 , 0 , 7 )
+      4  -> (0 , 0 , 15)
+      5  -> (0 , 1 , 15)
+      6  -> (0 , 3 , 15)
+      7  -> (0 , 7 , 15)
+      8  -> (0 , 15, 15)
+      9  -> (1 , 15, 15)
+      10 -> (3 , 15, 15)
+      11 -> (7 , 15, 15)
+      _  -> (15, 15, 15)
+

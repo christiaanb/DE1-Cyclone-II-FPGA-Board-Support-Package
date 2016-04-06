@@ -7,10 +7,6 @@ type CordicS = Vec 16 (Signed 16, Signed 16, Signed 20)
 type CordicI = Signed 16
 type CordicO = (Signed 16, Signed 16)
 
---cordic = proc inp -> do
---  outp <- (comp cordicCoreT cordicCoreInit sysclock) -< inp
---  returnA -< outp
-
 cordic = mealyB cordicCoreT cordicCoreInit
 
 cordicCoreInit :: CordicS
