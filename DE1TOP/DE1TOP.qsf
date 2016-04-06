@@ -186,3 +186,5 @@ set_global_assignment -name SDC_FILE de1.sdc
 set_global_assignment -name VHDL_FILE audiopll.vhd
 set_global_assignment -name VHDL_FILE fftpll.vhd
 set_global_assignment -name VHDL_FILE DE1TOP.vhd
+
+set_global_assignment -name STRATIX_CONFIGURATION_DEVICE EPCS4
