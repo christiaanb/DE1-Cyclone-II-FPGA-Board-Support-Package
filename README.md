@@ -1,3 +1,7 @@
+# Required FPGA development board
+
+This design is intended to be instantiated on the [Terasic/Altera DE1 Cyclone II development board] (http://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&CategoryNo=53&No=83)
+
 # How to generate a bit-file:
 
 - `clash --vhdl DE1.hs`
