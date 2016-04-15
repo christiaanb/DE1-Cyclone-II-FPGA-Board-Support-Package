@@ -28,7 +28,7 @@ type AudioCtrlO = (Bit,Bit,(Signed 18, Signed 18), Bit)
 audioCtrl (ldata,rdata,wEn,clks) = outp
   where
     wEnS     = wordSynchronize systemClock bclkClock False wEn
-    outp     = mealyB' bclkClock audioCtrlT audioCtrlInit (bundle' bclkClock (ldata,rdata,wEnS),clks)
+    outp     = mealyB' bclkClock audioCtrlT audioCtrlInit (bundle (ldata,rdata,wEnS),clks)
 
 audioCtrlInit :: AudioCtrlS
 audioCtrlInit = ACS 0 0 0 0 low low (repeat low) (repeat low) (repeat low) 0 0

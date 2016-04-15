@@ -100,12 +100,12 @@ topEntity (rst,kbdata,sdaI,sramIn,audioClks,filterEnable,highOrLow) = (done,faul
     scl                                          = pack <$> sclOen
     (start,stop,write,din,done,fault)            = audioConfig (rst,signal True,hostAck,ackOut,al)
     (pulseAdc48KHz,pulseDac48KHz,adcData,dacDat) = audioCtrl (firDataL,firDataR,done,audioClks)
-    (lAdcData,rAdcData)                          = unbundle' bclkClock adcData
+    (lAdcData,rAdcData)                          = unbundle adcData
     (mixChannelL,mixChannelR)                    = mixer ((lAdcData,unsafeSynchronizer systemClock bclkClock sine)
                                                          ,(rAdcData,unsafeSynchronizer systemClock bclkClock sine))
     (firDataL,pulseAdc48KHzDL)                   = fir17sync mixChannelL pulseAdc48KHz filterEnable highOrLow
     (firDataR,_)                                 = fir17sync mixChannelR pulseAdc48KHz filterEnable highOrLow
     firDataLS                                    = wordSynchronize bclkClock fftClock 0 firDataL
     pulseAdc48KHzDLS                             = wordSynchronize bclkClock fftClock 0 pulseAdc48KHzDL
-    fftData                                      = fftfull (bundle' fftClock (firDataLS,pulseAdc48KHzDLS))
+    fftData                                      = fftfull (bundle (firDataLS,pulseAdc48KHzDLS))
     (sramOut,vgaOut)                             = spectrumDisplay sramIn fftData
